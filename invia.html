@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MetaMon · Invia ROM</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <style>
+    :root { --bg:#0e0f12; --fg:#f2f2f2; --dim:#a0a3ab; --accent:#3ddc84; --card:#1a1c21; --line:#30333a; }
+    @media (prefers-color-scheme: light) { :root:not([data-theme=dark]) { --bg:#f6f7f9; --fg:#15171a; --dim:#5d626b; --accent:#118a4a; --card:#fff; --line:#d9dce1; } }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+    main { max-width:440px; margin:0 auto; padding:28px 16px 48px; }
+    h1 { margin:0 0 4px; font-size:26px; } p { color:var(--dim); margin:6px 0 20px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; display:grid; gap:14px; }
+    label { font-weight:600; font-size:15px; display:grid; gap:6px; }
+    input { font:inherit; color:var(--fg); background:transparent; border:1px solid var(--line); border-radius:10px; padding:12px; width:100%; }
+    #code { font-size:28px; letter-spacing:.3em; text-align:center; }
+    button { font:inherit; font-weight:600; border:0; border-radius:12px; padding:14px; background:var(--accent); color:#000; }
+    button:disabled { opacity:.5; }
+    progress { width:100%; height:10px; }
+    #msg { min-height:1.4em; color:var(--dim); margin:0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Invia una ROM agli occhiali</h1>
+  <p>Sugli occhiali apri MetaMon, scegli «Invia dal telefono» e scrivi qui il codice che vedi. Il file passa direttamente dal telefono agli occhiali.</p>
+  <form class="card" id="f">
+    <label>Codice sugli occhiali <input id="code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off"></label>
+    <label>File ROM (.gba) <input id="file" type="file" accept=".gba,.gbc,.gb,.zip,.7z" required></label>
+    <button id="go" type="submit">Invia</button>
+    <progress id="bar" max="1" value="0" hidden></progress>
+    <p id="msg" role="status"></p>
+  </form>
+</main>
+<script src="vendor/peerjs.min.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const code = location.hash.replace('#', ''); if (/^\d{4}$/.test(code)) $('#code').value = code;
+const msg = (t) => ($('#msg').textContent = t);
+$('#f').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const file = $('#file').files[0]; if (!file) return;
+  $('#go').disabled = true; msg('Mi collego agli occhiali…');
+  const ph = new URLSearchParams(location.search).get('peerhost');
+  const opts = ph ? { host: ph.split(':')[0], port: Number(ph.split(':')[1] || 443), path: '/', secure: location.protocol === 'https:' && !ph.startsWith('localhost') } : {};
+  const peer = new Peer(opts);
+  peer.on('error', (err) => { msg('Errore: ' + (err.type === 'peer-unavailable' ? 'codice non trovato, controlla gli occhiali' : err.type)); $('#go').disabled = false; peer.destroy(); });
+  peer.on('open', () => {
+    const conn = peer.connect('metamon-' + $('#code').value, { reliable: true });
+    conn.on('open', async () => {
+      const buf = await file.arrayBuffer();
+      conn.send({ type: 'meta', name: file.name, size: buf.byteLength });
+      const bar = $('#bar'); bar.hidden = false;
+      const CH = 64 * 1024;
+      for (let o = 0; o < buf.byteLength; o += CH) {
+        conn.send(buf.slice(o, o + CH));
+        const dc = conn.dataChannel;
+        while (dc && dc.bufferedAmount > 4 * 1024 * 1024) await new Promise((r) => setTimeout(r, 30));
+        bar.value = Math.min(1, (o + CH) / buf.byteLength);
+        msg('Invio… ' + Math.round(bar.value * 100) + '%');
+      }
+      conn.send({ type: 'done' });
+      msg('Inviato, attendo conferma…');
+    });
+    conn.on('data', (d) => { if (d && d.type === 'ok') { msg('Fatto! Il gioco parte sugli occhiali.'); $('#go').disabled = false; setTimeout(() => peer.destroy(), 1500); } });
+  });
+});
+</script>
+</body>
+</html>

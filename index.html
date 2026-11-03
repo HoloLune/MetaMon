@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="mrbd-web-app-capable" content="yes">
+  <meta name="application-name" content="MetaMon">
+  <meta name="description" content="Gioca ai tuoi giochi Game Boy Advance sugli occhiali Meta Ray-Ban Display. La ROM la carichi tu.">
+  <title>MetaMon</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="loader" class="screen">
+    <h1>MetaMon</h1>
+    <p id="status" class="dim">Avvio dell'emulatore…</p>
+
+    <section id="library" hidden>
+      <h2>I tuoi giochi</h2>
+      <div id="romList" class="list"></div>
+    </section>
+
+    <section id="addRom" hidden>
+      <h2>Aggiungi una ROM</h2>
+      <div class="list">
+        <button id="btnPhone" type="button">Invia dal telefono</button>
+        <label class="filebtn" for="fileInput">Scegli file</label>
+        <input id="fileInput" type="file" accept=".gba,.gbc,.gb,.zip,.7z">
+        <button id="btnUrl" type="button">Scarica da URL</button>
+      </div>
+      <form id="urlForm" hidden>
+        <input id="urlInput" type="url" placeholder="https://…/gioco.gba" aria-label="URL della ROM">
+        <button type="submit">Scarica</button>
+      </form>
+      <div id="phonePanel" hidden>
+        <p>Sul telefono apri<br><strong id="sendUrl"></strong><br>e inserisci il codice</p>
+        <p id="pairCode" class="code">····</p>
+        <p id="pairStatus" class="dim"></p>
+      </div>
+    </section>
+
+    <section id="installPanel" hidden>
+      <h2>Installa sugli occhiali</h2>
+      <p class="dim">Inquadra con il telefono (Modalità sviluppatore attiva nell'app Meta AI).</p>
+      <div id="qr"></div>
+    </section>
+  </main>
+
+  <div id="game" class="screen" tabindex="-1" hidden>
+    <canvas id="canvas" width="240" height="160"></canvas>
+    <div id="hud" aria-live="polite"></div>
+  </div>
+
+  <div id="menu" class="overlay" hidden>
+    <div class="grid">
+      <button data-act="resume" type="button">Riprendi</button>
+      <button data-btn="start" type="button">START</button>
+      <button data-btn="select" type="button">SELECT</button>
+      <button data-btn="l" type="button">L</button>
+      <button data-btn="r" type="button">R</button>
+      <button data-act="run" type="button">Corri</button>
+      <button data-act="walk" type="button">Passo continuo</button>
+      <button data-act="speed" type="button">Veloce x2</button>
+      <button data-act="audio" type="button">Audio</button>
+      <button data-act="save" type="button">Salva stato</button>
+      <button data-act="load" type="button">Carica stato</button>
+      <button data-act="quit" type="button">Cambia gioco</button>
+    </div>
+  </div>
+
+  <div id="toast" role="status" hidden></div>
+
+  <script src="vendor/qrcode.js"></script>
+  <script src="vendor/peerjs.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
