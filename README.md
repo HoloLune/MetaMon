@@ -7,13 +7,13 @@ Nessuna ROM è inclusa: ognuno carica la propria copia.
 
 | Gesto | Tasto GBA |
 |---|---|
-| Swipe su/giù/sinistra/destra | Croce direzionale (un passo) |
-| Pinch (Invio) | A |
-| Indietro | B |
-| Indietro due volte di fila | Menu: START, SELECT, L, R, Corri, Passo continuo, Veloce x2, Audio, Salva/Carica stato, Cambia gioco |
+| Swipe su/giù/sinistra/destra | Cammina in quella direzione finché non fai un altro gesto |
+| Pinch (Invio) | A (se stai camminando: si ferma e basta) |
+| Indietro | B (se stai camminando: si ferma e basta) |
+| Indietro due volte di fila | Menu: START, SELECT, L, R, Corri, Camminata auto, Veloce x2, Audio, Salva/Carica stato, Cambia gioco |
 | Pinch e trascina | Tiene premuta la direzione finché trascini |
 
-*Corri* tiene premuto B (scarpe da corsa). *Passo continuo* fa camminare finché non dai un altro comando (stessa direzione = stop).
+Camminata automatica (attiva di base): uno swipe fa camminare finché non fai pinch, Indietro o lo stesso swipe; uno swipe diverso cambia direzione. Per 1,5 secondi dopo A, B o START gli swipe fanno invece un passo/una voce alla volta, così nei menu e nei dialoghi il cursore non scappa. Disattivandola dal menu ogni swipe è sempre un passo singolo. *Corri* tiene premuto B (scarpe da corsa).
 
 Da computer: frecce, X = A, Z = B, A = L, S = R, Spazio = START, Shift = SELECT, M o Esc doppio = menu.
 

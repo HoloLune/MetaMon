@@ -13,7 +13,8 @@ const settings = {
   stepMs: LS.get('stepMs', 200),   // how long a swipe holds the D-pad (≈ one tile in Pokémon)
   tapMs: 90,                       // A / B / START press length
   run: LS.get('run', false),       // keep B held (running shoes)
-  walk: LS.get('walk', false),     // a swipe keeps walking until the next input
+  walk: LS.get('walk2', true),     // a swipe keeps walking until the next input (auto, see onDirection)
+  menuWindowMs: 1500,              // swipes this soon after a button press are single steps (menus, dialogs)
   speed: LS.get('speed', false),   // fast forward x2
   audio: LS.get('audio', true),
 };
@@ -72,14 +73,21 @@ const keyDownAt = new Map();
 
 function stopWalking() { if (walking) { release(walking); walking = null; } }
 
+// Automatic walking: in the overworld a swipe keeps walking until the next input.
+// Right after A/B/START (menus, dialogs, battles) swipes are single steps instead,
+// so a menu cursor never runs away; each single step keeps that window open.
+let lastButtonAt = 0;
+const markButton = () => { lastButtonAt = performance.now(); };
 function onDirection(dir, repeat) {
-  if (settings.walk) {
+  const inMenuWindow = performance.now() - lastButtonAt < settings.menuWindowMs;
+  if (settings.walk && (walking || !inMenuWindow)) {
     if (repeat) return;
     if (walking === dir) { stopWalking(); return; }  // same swipe again = stop
     stopWalking();
     walking = dir; press(dir);
     return;
   }
+  if (settings.walk) markButton();
   for (const d of Object.values(DIRS)) if (d !== dir && held.has(d)) release(d);
   tap(dir, settings.stepMs);
 }
@@ -95,7 +103,8 @@ function onBack() {
   if (backTimer) {                   // second Back within 350 ms -> menu
     clearTimeout(backTimer); backTimer = null; openMenu(); return;
   }
-  backTimer = setTimeout(() => { backTimer = null; stopWalking(); tap('b'); }, 350);
+  if (walking) { stopWalking(); return; }       // Back while walking = just stop
+  backTimer = setTimeout(() => { backTimer = null; markButton(); tap('b'); }, 350);
 }
 window.addEventListener('popstate', () => {
   if (mode === 'loader') return;    // let Back leave the app from the loader
@@ -114,7 +123,11 @@ window.addEventListener('keydown', (e) => {
   e.preventDefault(); e.stopPropagation();
   const dir = DIRS[e.key];
   if (dir) { keyDownAt.set(dir, performance.now()); onDirection(dir, e.repeat); return; }
-  if (e.key === 'Enter') { if (!e.repeat) { stopWalking(); tap('a'); } else press('a'); return; }
+  if (e.key === 'Enter') {
+    if (e.repeat) { press('a'); return; }
+    if (walking) { stopWalking(); return; }     // pinch while walking = just stop
+    markButton(); tap('a'); return;
+  }
   if (e.key === 'Escape' || e.key === 'Backspace') { if (!e.repeat) onBack(); return; }
   if (e.key === 'm' || e.key === 'M') { openMenu(); return; }
   const b = DESKTOP[e.code];
@@ -125,7 +138,7 @@ window.addEventListener('keyup', (e) => {
   if (mode !== 'game') return;
   e.preventDefault(); e.stopPropagation();
   const dir = DIRS[e.key];
-  if (dir && !settings.walk) {
+  if (dir && !walking) {
     // If the key was really held (desktop, or a long press), release on keyup,
     // otherwise let the step timer finish so a quick swipe still moves one tile.
     const t = performance.now() - (keyDownAt.get(dir) || 0);
@@ -163,7 +176,7 @@ window.addEventListener('pointercancel', endDrag);
 function refreshMenu() {
   const set = (act, on) => $(`[data-act=${act}]`).setAttribute('aria-pressed', String(on));
   set('run', settings.run); set('walk', settings.walk); set('speed', settings.speed); set('audio', settings.audio);
-  const hud = [settings.run && 'Corsa', settings.walk && 'Passo continuo', settings.speed && 'x2', !settings.audio && 'Muto'].filter(Boolean);
+  const hud = [settings.run && 'Corsa', !settings.walk && 'Passi singoli', settings.speed && 'x2', !settings.audio && 'Muto'].filter(Boolean);
   $('#hud').textContent = hud.join(' · ');
 }
 function openMenu() {
@@ -185,11 +198,11 @@ function closeMenu(then) {
 $('#menu').addEventListener('click', async (e) => {
   const el = e.target.closest('button'); if (!el) return;
   const btn = el.dataset.btn, act = el.dataset.act;
-  if (btn) { closeMenu(() => tap(btn, 120)); return; }
+  if (btn) { markButton(); closeMenu(() => tap(btn, 120)); return; }
   switch (act) {
     case 'resume': closeMenu(); break;
     case 'run': settings.run = !settings.run; LS.set('run', settings.run); refreshMenu(); break;
-    case 'walk': settings.walk = !settings.walk; LS.set('walk', settings.walk); refreshMenu(); break;
+    case 'walk': settings.walk = !settings.walk; LS.set('walk2', settings.walk); refreshMenu(); break;
     case 'speed': settings.speed = !settings.speed; LS.set('speed', settings.speed); applySpeed(); refreshMenu(); break;
     case 'audio': settings.audio = !settings.audio; LS.set('audio', settings.audio); applyAudio(); refreshMenu(); break;
     case 'save': {
@@ -360,7 +373,7 @@ function renderInstallQr() {
     await Module.FSInit();
     try { Module.toggleInput(false); } catch {}  // we drive the buttons ourselves
     Module.addCoreCallbacks({ saveDataUpdatedCallback: () => syncSoon(), autoSaveStateCapturedCallback: () => syncSoon(2000) });
-    window.MetaMon = { Module, settings };   // handy for debugging
+    window.MetaMon = { Module, settings, held };   // handy for debugging
     renderInstallQr();
     const romParam = new URLSearchParams(location.search).get('rom');
     if (romParam) {
