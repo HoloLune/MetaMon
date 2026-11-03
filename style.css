@@ -46,11 +46,12 @@ button[aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
 
 /* Game: 240x160 scaled to the full width (2.5x on 600 px), centered. */
 #game { display: flex; align-items: center; justify-content: center; outline: none; }
-#canvas {
-  width: 100vw; height: calc(100vw * 2 / 3);
-  max-height: 100vh; max-width: calc(100vh * 3 / 2);
-  image-rendering: pixelated; image-rendering: crisp-edges;
-}
+#ejs { width: 100vw; height: calc(100vw * 2 / 3); max-height: 100vh; max-width: calc(100vh * 3 / 2); position: relative; }
+/* hide EmulatorJS's own UI: MetaMon has its own menu and input */
+#ejs .ejs_menu_bar, #ejs .ejs_virtualGamepad_parent, #ejs .ejs_start_button, #ejs .ejs_context_menu,
+#ejs .ejs_message, #ejs .ejs_popup_container, #ejs .ejs_game_background { display: none !important; }
+#ejs canvas { image-rendering: pixelated; }
+
 #hud {
   position: absolute; left: 0; right: 0; bottom: 14px;
   text-align: center; font-size: 18px; color: var(--dim);

@@ -1,7 +1,8 @@
-// MetaMon: mGBA (WebAssembly) frontend for Meta Ray-Ban Display glasses.
+// MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import mGBA from './mgba.js';
+import * as engine from './engine.js';
+import * as store from './store.js';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -19,7 +20,6 @@ const settings = {
   audio: LS.get('audio', true),
 };
 
-let Module = null;
 let mode = 'loader';               // 'loader' | 'game' | 'menu'
 let currentRom = null;
 
@@ -31,33 +31,16 @@ function toast(msg, ms = 1800) {
 function setStatus(msg) { $('#status').textContent = msg; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const safeName = (n) => (n || 'gioco.gba').split(/[\\/]/).pop().replace(/[^\w.\- ]+/g, '_').slice(0, 80);
-let syncTimer = null;
-function syncSoon(ms = 800) {
-  clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => Module?.FSSync().catch((e) => console.warn(e)), ms);
-}
-
-// ---------- cross-origin isolation (needed for mGBA threads) ----------
-async function ensureIsolation() {
-  if (window.crossOriginIsolated) return true;
-  if (!('serviceWorker' in navigator)) return false;
-  const reg = await navigator.serviceWorker.register('sw.js');
-  await navigator.serviceWorker.ready;
-  if (!sessionStorage.getItem('metamon.reloaded')) {
-    sessionStorage.setItem('metamon.reloaded', '1');
-    location.reload();
-    await new Promise(() => {});
-  }
-  return false;
-}
+const romKeys = async () => (await store.keys()).filter((k) => k.startsWith('rom:')).map((k) => k.slice(4));
+function hash(u8) { let h = 2166136261 >>> 0; for (let i = 0; i < u8.length; i += 7) h = Math.imul(h ^ u8[i], 16777619) >>> 0; return h + ':' + u8.length; }
 
 // ---------- GBA buttons ----------
 const timers = new Map();
 const held = new Set();
-function press(btn) { if (!held.has(btn)) { held.add(btn); Module?.buttonPress(btn); } }
+function press(btn) { if (!held.has(btn)) { held.add(btn); engine.press(btn); } }
 function release(btn) {
   clearTimeout(timers.get(btn)); timers.delete(btn);
-  if (held.has(btn)) { held.delete(btn); Module?.buttonUnpress(btn); }
+  if (held.has(btn)) { held.delete(btn); engine.release(btn); }
   if (btn === 'b' && settings.run && mode === 'game') press('b'); // keep running
 }
 function tap(btn, ms = settings.tapMs) {
@@ -65,7 +48,7 @@ function tap(btn, ms = settings.tapMs) {
   clearTimeout(timers.get(btn));
   timers.set(btn, setTimeout(() => release(btn), ms));
 }
-function releaseAll() { for (const b of [...held]) { clearTimeout(timers.get(b)); timers.delete(b); held.delete(b); Module?.buttonUnpress(b); } }
+function releaseAll() { for (const b of [...held]) { clearTimeout(timers.get(b)); timers.delete(b); held.delete(b); engine.release(b); } }
 
 const DIRS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 let walking = null;                 // direction held by "Passo continuo"
@@ -239,7 +222,7 @@ function refreshMenu() {
 function openMenu() {
   if (mode !== 'game') return;
   releaseAll(); walking = null;
-  mode = 'menu'; Module.pauseGame();
+  mode = 'menu'; engine.pause();
   refreshMenu();
   $('#menu').hidden = false;
   $('#menu [data-act=resume]').focus();
@@ -247,7 +230,7 @@ function openMenu() {
 function closeMenu(then) {
   if (mode !== 'menu') return;
   $('#menu').hidden = true;
-  mode = 'game'; Module.resumeGame();
+  mode = 'game'; engine.resume();
   $('#game').focus();
   if (settings.run) press('b');
   if (then) setTimeout(then, 60);
@@ -263,59 +246,79 @@ $('#menu').addEventListener('click', async (e) => {
     case 'speed': settings.speed = !settings.speed; LS.set('speed', settings.speed); applySpeed(); refreshMenu(); break;
     case 'audio': settings.audio = !settings.audio; LS.set('audio', settings.audio); applyAudio(); refreshMenu(); break;
     case 'save': {
-      const ok = Module.saveState(1); await Module.FSSync().catch(() => {});
+      let ok = false;
+      try { await store.put(`state:${currentRom}:1`, engine.getState()); ok = true; } catch (err) { console.warn(err); }
       closeMenu(); toast(ok ? 'Stato salvato' : 'Salvataggio non riuscito'); break;
     }
     case 'load': {
-      const ok = Module.loadState(1);
-      closeMenu(); toast(ok ? 'Stato caricato' : 'Nessuno stato salvato'); break;
+      const st = await store.get(`state:${currentRom}:1`);
+      if (st) engine.loadState(st);
+      closeMenu(); toast(st ? 'Stato caricato' : 'Nessuno stato salvato'); break;
     }
     case 'quit': await quitGame(); break;
   }
 });
-function applySpeed() { try { Module.setFastForwardMultiplier(settings.speed ? 2 : 1); } catch (e) { console.warn(e); } }
-function applyAudio() { try { Module.setVolume(settings.audio ? 100 : 0); } catch (e) { console.warn(e); } }
-function resumeAudio() { try { const ctx = Module?.SDL2?.audioContext; if (ctx && ctx.state !== 'running') ctx.resume(); } catch {} }
+function applySpeed() { engine.setSpeed(settings.speed); }
+function applyAudio() { engine.setVolume(settings.audio ? 1 : 0); }
+function resumeAudio() { engine.resumeAudio(); }
 
 // ---------- game lifecycle ----------
 async function startGame(name) {
-  const path = Module.filePaths().gamePath + '/' + name;
+  // EmulatorJS runs one game per page: switching game = reload with ?play=
+  if (engine.isRunning() || startGame.busy) { location.href = location.pathname + '?play=' + encodeURIComponent(name); return; }
+  startGame.busy = true;
   setStatus('Caricamento di ' + name + '…');
-  if (!Module.loadGame(path)) { toast('Impossibile avviare ' + name, 3000); setStatus('ROM non valida?'); return; }
-  currentRom = name; LS.set('last', name);
+  $('#addRom').hidden = true; $('#library').hidden = true; $('#tools').hidden = true;
+  const bytes = await store.get('rom:' + name);
+  if (!bytes) { setStatus('ROM non trovata: ' + name); startGame.busy = false; renderLibrary(); return; }
+  LS.set('last', name);
+  $('#game').hidden = false; $('#game').style.visibility = 'hidden';
   try {
-    Module.setCoreSettings({ autoSaveStateEnable: true, restoreAutoSaveStateOnLoad: true, autoSaveStateTimerIntervalSeconds: 30 });
-  } catch (e) { console.warn(e); }
+    await engine.start(name, bytes, (txt) => setStatus(txt));
+  } catch (err) {
+    console.error(err);
+    $('#game').hidden = true; $('#game').style.visibility = '';
+    setStatus('Impossibile avviare ' + name + ': ' + err.message);
+    return;
+  }
+  currentRom = name;
+  // restore in-game save (SRAM) and the automatic snapshot of where you left off
+  try { const srm = await store.get('srm:' + name); if (srm) { engine.restoreSave(srm); lastSrm = hash(srm); } } catch (e) { console.warn(e); }
+  try { const st = await store.get(`state:${name}:auto`); if (st) engine.loadState(st); } catch (e) { console.warn(e); }
   applySpeed(); applyAudio(); resumeAudio();
-  $('#loader').hidden = true; $('#game').hidden = false;
+  $('#loader').hidden = true; $('#game').style.visibility = '';
   mode = 'game';
   armBackTrap();
   $('#game').focus();
   if (settings.run) press('b');
   refreshMenu();
   toast('Indietro = B · doppio Indietro = menu', 2600);
+  setInterval(() => persist(false), 10000);
+  setInterval(() => persist(true), 30000);
+}
+let lastSrm = null;
+async function persist(withState) {
+  if (!currentRom) return;
+  try {
+    const srm = engine.getSave();
+    if (srm && srm.length) { const h = hash(srm); if (h !== lastSrm) { await store.put('srm:' + currentRom, srm.slice()); lastSrm = h; } }
+  } catch (e) { console.warn('save', e); }
+  if (withState && (mode === 'game' || mode === 'menu')) {
+    try { await store.put(`state:${currentRom}:auto`, engine.getState()); } catch (e) { console.warn('state', e); }
+  }
 }
 async function quitGame() {
   $('#menu').hidden = true;
   releaseAll();
-  try { Module.forceAutoSaveState(); } catch {}
-  try { Module.quitGame(); } catch (e) { console.warn(e); }
-  await Module.FSSync().catch(() => {});
-  mode = 'loader'; currentRom = null;
-  $('#game').hidden = true; $('#loader').hidden = false;
-  renderLibrary();
+  await persist(true);
+  location.href = location.pathname;
 }
-function persistOnHide() {
-  if (!Module || !currentRom) return;
-  try { Module.forceAutoSaveState(); } catch {}
-  Module.FSSync().catch(() => {});
-}
-document.addEventListener('visibilitychange', () => { if (document.hidden) persistOnHide(); });
-window.addEventListener('pagehide', persistOnHide);
+document.addEventListener('visibilitychange', () => { if (document.hidden) persist(true); });
+window.addEventListener('pagehide', () => persist(true));
 
 // ---------- library / adding ROMs ----------
-function renderLibrary() {
-  const roms = Module.listRoms().filter((n) => n !== '.' && n !== '..');
+async function renderLibrary() {
+  const roms = await romKeys();
   const list = $('#romList'); list.innerHTML = '';
   const last = LS.get('last', null);
   roms.sort((a, b) => (a === last ? -1 : b === last ? 1 : a.localeCompare(b)));
@@ -333,8 +336,7 @@ function renderLibrary() {
 async function addRom(name, bytes) {
   name = safeName(name);
   if (!/\.(gba|gbc|gb|zip|7z)$/i.test(name)) name += '.gba';
-  Module.FS.writeFile(Module.filePaths().gamePath + '/' + name, bytes);
-  await Module.FSSync().catch((e) => console.warn(e));
+  await store.put('rom:' + name, bytes);
   toast('ROM aggiunta: ' + name);
   return name;
 }
@@ -420,25 +422,19 @@ function renderInstallQr() {
 // ---------- boot ----------
 (async function boot() {
   try {
-    const ok = await ensureIsolation();
-    if (!ok && !window.crossOriginIsolated) {
-      setStatus('Questo browser non permette i thread WebAssembly (manca il cross-origin isolation): l\'emulatore non può partire.');
-      return;
-    }
-    setStatus('Avvio dell\'emulatore…');
-    Module = await mGBA({ canvas: $('#canvas') });
-    await Module.FSInit();
-    try { Module.toggleInput(false); } catch {}  // we drive the buttons ourselves
-    Module.addCoreCallbacks({ saveDataUpdatedCallback: () => syncSoon(), autoSaveStateCapturedCallback: () => syncSoon(2000) });
-    window.MetaMon = { Module, settings, held };   // handy for debugging
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    window.MetaMon = { engine, store, settings, held };   // handy for debugging
     renderInstallQr();
-    const romParam = new URLSearchParams(location.search).get('rom');
+    const q = new URLSearchParams(location.search);
+    const play = q.get('play');
+    if (play && (await romKeys()).includes(play)) { await startGame(play); return; }
+    const romParam = q.get('rom');
     if (romParam) {
       const n = safeName(decodeURIComponent(new URL(romParam, location.href).pathname.split('/').pop()));
-      if (Module.listRoms().includes(n)) { await startGame(n); return; }
+      if ((await romKeys()).includes(n)) { await startGame(n); return; }
       await fetchRom(romParam); if (mode === 'game') return;
     }
-    renderLibrary();
+    await renderLibrary();
   } catch (err) {
     console.error(err);
     setStatus('Errore di avvio: ' + (err?.message || err));

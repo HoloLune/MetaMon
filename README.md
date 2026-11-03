@@ -1,6 +1,6 @@
 # MetaMon
 
-Emulatore Game Boy Advance (mGBA in WebAssembly) pensato per gli occhiali **Meta Ray-Ban Display**.
+Emulatore Game Boy Advance (mGBA, nella versione single-thread di EmulatorJS) pensato per gli occhiali **Meta Ray-Ban Display**.
 Nessuna ROM è inclusa: ognuno carica la propria copia.
 
 ## Comandi sugli occhiali
@@ -23,15 +23,17 @@ Da computer: frecce, X = A, Z = B, A = L, S = R, Spazio = START, Shift = SELECT,
 2. **Scegli file**, se il browser degli occhiali lo permette.
 3. **Da URL**: `<sito>/?rom=https://…/gioco.gba` (il server della ROM deve permettere CORS).
 
-La ROM, i salvataggi in-game e un salvataggio automatico ogni 30 s restano nel browser (IndexedDB), quindi alla riapertura trovi «Continua».
+La ROM, i salvataggi in-game (controllati ogni 10 s) e un'istantanea automatica ogni 30 s restano nel browser (Cache Storage, con IndexedDB come riserva), quindi alla riapertura trovi «Continua» esattamente dove eri.
 
 ## Pubblicazione
 
-Serve un hosting HTTPS statico (GitHub Pages, Netlify, Vercel, Cloudflare Pages). mGBA usa i thread WebAssembly, che richiedono il *cross-origin isolation*: `sw.js` aggiunge da solo gli header COOP/COEP, quindi funziona anche su GitHub Pages. Su Netlify/Cloudflare il file `_headers` li imposta direttamente.
+Basta un hosting HTTPS statico (GitHub Pages, Netlify, Vercel, Cloudflare Pages). Il core non usa thread WebAssembly, quindi non servono header speciali: il browser degli occhiali non supporta il cross-origin isolation.
 
 Installazione sugli occhiali: apri il sito dal computer, compare un QR «Installa sugli occhiali» (link `fb-viewapp://web_app_deep_link?...`) da inquadrare con il telefono, con la Modalità sviluppatore attiva nell'app Meta AI.
 
 ## Licenze
 
-- mGBA (`mgba.js`, `mgba.wasm`, da [@thenick775/mgba-wasm](https://www.npmjs.com/package/@thenick775/mgba-wasm) 2.6.0): MPL-2.0
+- EmulatorJS 4.2.3 (`ejs/data`): GPL-3.0, vedi `ejs/LICENSE`. `emulator.min.js` è la semplice concatenazione dei sorgenti in `ejs/data/src` (con il controllo versioni verso il CDN disattivabile).
+- Core mGBA per EmulatorJS (`ejs/data/cores`, da `@emulatorjs/core-mgba` 4.2.3): mGBA è MPL-2.0.
 - PeerJS 1.5.4: MIT · qrcode-generator 1.4.4: MIT
+- Il codice di MetaMon è distribuito sotto GPL-3.0 insieme a EmulatorJS.
