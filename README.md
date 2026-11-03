@@ -13,7 +13,7 @@ Nessuna ROM è inclusa: ognuno carica la propria copia.
 | Indietro due volte di fila | Menu: START, SELECT, L, R, Corri, Camminata auto, Veloce x2, Audio, Salva/Carica stato, Cambia gioco |
 | Pinch e trascina | Tiene premuta la direzione finché trascini |
 
-Camminata automatica (attiva di base): uno swipe fa camminare finché non fai pinch, Indietro o lo stesso swipe; uno swipe diverso cambia direzione. Per 1,5 secondi dopo A, B o START gli swipe fanno invece un passo/una voce alla volta, così nei menu e nei dialoghi il cursore non scappa. Disattivandola dal menu ogni swipe è sempre un passo singolo. *Corri* tiene premuto B (scarpe da corsa).
+Camminata automatica (attiva di base): uno swipe fa camminare finché non fai pinch, Indietro o lo stesso swipe; uno swipe diverso cambia direzione. Per 1,5 secondi dopo A, B o START gli swipe fanno invece un passo/una voce alla volta, così nei menu e nei dialoghi il cursore non scappa. Se gli occhiali segnalano il dito tenuto appoggiato (tasto ripetuto o rilasciato dopo più di 0,35 s), l'app lo rileva da sola e da lì in poi cammini finché tieni il dito; riattivare «Camminata auto» dal menu annulla il rilevamento. «Prova comandi» nella schermata iniziale mostra gli eventi che arrivano dagli occhiali. Disattivandola dal menu ogni swipe è sempre un passo singolo. *Corri* tiene premuto B (scarpe da corsa).
 
 Da computer: frecce, X = A, Z = B, A = L, S = R, Spazio = START, Shift = SELECT, M o Esc doppio = menu.
 

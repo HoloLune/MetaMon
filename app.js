@@ -70,6 +70,11 @@ function releaseAll() { for (const b of [...held]) { clearTimeout(timers.get(b))
 const DIRS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 let walking = null;                 // direction held by "Passo continuo"
 const keyDownAt = new Map();
+const keysDown = new Set();
+// Some inputs report "finger still down" (key repeat or a late keyup). Once we see that,
+// a direction is held exactly as long as the finger stays down instead of auto-walking.
+let holdCapable = LS.get('holdCapable', false);
+function learnHold() { if (!holdCapable) { holdCapable = true; LS.set('holdCapable', true); toast('Rilevato: cammini finché tieni il dito'); } }
 
 function stopWalking() { if (walking) { release(walking); walking = null; } }
 
@@ -79,6 +84,16 @@ function stopWalking() { if (walking) { release(walking); walking = null; } }
 let lastButtonAt = 0;
 const markButton = () => { lastButtonAt = performance.now(); };
 function onDirection(dir, repeat) {
+  if (repeat) learnHold();
+  if (holdCapable) {
+    stopWalking();
+    for (const d of Object.values(DIRS)) if (d !== dir && held.has(d)) release(d);
+    press(dir);
+    clearTimeout(timers.get(dir));
+    // safety net in case a keyup gets lost
+    timers.set(dir, setTimeout(() => { if (!keysDown.has(dir)) release(dir); }, 4000));
+    return;
+  }
   const inMenuWindow = performance.now() - lastButtonAt < settings.menuWindowMs;
   if (settings.walk && (walking || !inMenuWindow)) {
     if (repeat) return;
@@ -108,6 +123,7 @@ function onBack() {
 }
 window.addEventListener('popstate', () => {
   if (mode === 'loader') return;    // let Back leave the app from the loader
+  if (mode === 'diag') { diag('Indietro (popstate)'); closeDiag(); return; }
   armBackTrap(); onBack();
 });
 
@@ -115,6 +131,7 @@ window.addEventListener('popstate', () => {
 const DESKTOP = { KeyX: 'a', KeyZ: 'b', KeyA: 'l', KeyS: 'r', Space: 'start', ShiftRight: 'select', ShiftLeft: 'select' };
 window.addEventListener('keydown', (e) => {
   resumeAudio();
+  if (mode === 'diag') { e.preventDefault(); return; }
   if (mode === 'menu') {
     if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); closeMenu(); }
     return;                          // native spatial navigation handles the menu
@@ -122,7 +139,13 @@ window.addEventListener('keydown', (e) => {
   if (mode !== 'game') return;
   e.preventDefault(); e.stopPropagation();
   const dir = DIRS[e.key];
-  if (dir) { keyDownAt.set(dir, performance.now()); onDirection(dir, e.repeat); return; }
+  if (dir) {
+    const again = keysDown.has(dir);           // keydown again without keyup = held
+    if (!e.repeat && !again) keyDownAt.set(dir, performance.now());
+    keysDown.add(dir);
+    onDirection(dir, e.repeat || again);
+    return;
+  }
   if (e.key === 'Enter') {
     if (e.repeat) { press('a'); return; }
     if (walking) { stopWalking(); return; }     // pinch while walking = just stop
@@ -138,11 +161,17 @@ window.addEventListener('keyup', (e) => {
   if (mode !== 'game') return;
   e.preventDefault(); e.stopPropagation();
   const dir = DIRS[e.key];
-  if (dir && !walking) {
-    // If the key was really held (desktop, or a long press), release on keyup,
-    // otherwise let the step timer finish so a quick swipe still moves one tile.
+  if (dir) {
+    keysDown.delete(dir);
     const t = performance.now() - (keyDownAt.get(dir) || 0);
-    if (t >= settings.stepMs) release(dir);
+    if (t >= 350) learnHold();
+    if (holdCapable) {
+      // keep at least one step for a quick swipe, otherwise release on lift
+      if (t >= settings.stepMs) release(dir);
+      else { clearTimeout(timers.get(dir)); timers.set(dir, setTimeout(() => release(dir), settings.stepMs - t)); }
+      return;
+    }
+    if (!walking && t >= settings.stepMs) release(dir);
     return;
   }
   if (e.key === 'Enter') { if (!timers.has('a')) release('a'); return; }
@@ -171,6 +200,34 @@ window.addEventListener('pointermove', (e) => {
 function endDrag() { if (drag?.dir) release(drag.dir); drag = null; }
 window.addEventListener('pointerup', endDrag);
 window.addEventListener('pointercancel', endDrag);
+
+// ---------- input test screen ----------
+const diagLog = [];
+function diag(msg) {
+  if (mode !== 'diag') return;
+  diagLog.unshift(`${(performance.now() / 1000).toFixed(2)}s  ${msg}`); diagLog.length = Math.min(diagLog.length, 9);
+  $('#diagLog').textContent = diagLog.join('\n');
+  $('#diagMode').textContent = holdCapable ? 'Modalità: cammini finché tieni il dito' : 'Modalità: camminata automatica (nessun «dito tenuto» rilevato finora)';
+}
+const diagDown = new Map();
+for (const t of ['keydown', 'keyup']) window.addEventListener(t, (e) => {
+  if (mode !== 'diag') return;
+  let extra = e.repeat ? ' (repeat)' : '';
+  if (t === 'keydown' && !e.repeat) diagDown.set(e.key, performance.now());
+  if (t === 'keyup' && diagDown.has(e.key)) {
+    const ms = Math.round(performance.now() - diagDown.get(e.key)); extra = ` dopo ${ms} ms`;
+    if (DIRS[e.key] && ms >= 350) learnHold();
+  }
+  if (e.repeat && DIRS[e.key]) learnHold();
+  diag(`${t} ${e.key}${extra}`);
+}, { capture: true });
+for (const t of ['pointerdown', 'pointerup', 'pointercancel']) window.addEventListener(t, (e) => diag(`${t} ${Math.round(e.clientX)},${Math.round(e.clientY)}`));
+$('#btnDiag').addEventListener('click', () => {
+  mode = 'diag'; diagLog.length = 0; armBackTrap();
+  $('#loader').hidden = true; $('#diag').hidden = false; document.activeElement?.blur();
+  diag('Fai swipe, tieni il dito, pinch… Indietro per uscire');
+});
+function closeDiag() { $('#diag').hidden = true; $('#loader').hidden = false; mode = 'loader'; renderLibrary(); }
 
 // ---------- menu ----------
 function refreshMenu() {
@@ -202,7 +259,7 @@ $('#menu').addEventListener('click', async (e) => {
   switch (act) {
     case 'resume': closeMenu(); break;
     case 'run': settings.run = !settings.run; LS.set('run', settings.run); refreshMenu(); break;
-    case 'walk': settings.walk = !settings.walk; LS.set('walk2', settings.walk); refreshMenu(); break;
+    case 'walk': settings.walk = !settings.walk; LS.set('walk2', settings.walk); if (settings.walk) { holdCapable = false; LS.set('holdCapable', false); } refreshMenu(); break;
     case 'speed': settings.speed = !settings.speed; LS.set('speed', settings.speed); applySpeed(); refreshMenu(); break;
     case 'audio': settings.audio = !settings.audio; LS.set('audio', settings.audio); applyAudio(); refreshMenu(); break;
     case 'save': {
@@ -269,7 +326,7 @@ function renderLibrary() {
     list.appendChild(b);
   }
   $('#library').hidden = roms.length === 0;
-  $('#addRom').hidden = false;
+  $('#addRom').hidden = false; $('#tools').hidden = false;
   setStatus(roms.length ? 'Scegli un gioco.' : 'Nessuna ROM ancora. Aggiungine una qui sotto.');
   (list.querySelector('button') || $('#btnPhone')).focus();
 }

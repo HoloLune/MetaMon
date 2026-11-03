@@ -39,12 +39,22 @@
       </div>
     </section>
 
+    <section id="tools" hidden>
+      <div class="list"><button id="btnDiag" type="button">Prova comandi</button></div>
+    </section>
+
     <section id="installPanel" hidden>
       <h2>Installa sugli occhiali</h2>
       <p class="dim">Inquadra con il telefono (Modalità sviluppatore attiva nell'app Meta AI).</p>
       <div id="qr"></div>
     </section>
   </main>
+
+  <div id="diag" class="screen" hidden>
+    <h2>Prova comandi</h2>
+    <p id="diagMode" class="dim"></p>
+    <pre id="diagLog"></pre>
+  </div>
 
   <div id="game" class="screen" tabindex="-1" hidden>
     <canvas id="canvas" width="240" height="160"></canvas>
