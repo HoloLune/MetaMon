@@ -50,6 +50,8 @@ button[aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
 #game { display: flex; align-items: center; justify-content: center; outline: none; }
 /* Note: rendering at 240x160 and scaling with a CSS transform made the glasses much slower (v10), so the canvas fills the width. */
 #ejs { width: 100vw; height: calc(100vw * 2 / 3); max-height: 100vh; max-width: calc(100vh * 3 / 2); position: relative; }
+/* Eco mode: render at the GBA's native 240x160 and let the compositor scale it (fewer pixels per frame) */
+body.eco #ejs { width: 240px; height: 160px; max-width: none; max-height: none; flex: none; transform: scale(var(--gba-scale, 2.5)); }
 /* hide EmulatorJS's own UI: MetaMon has its own menu and input */
 #ejs .ejs_menu_bar, #ejs .ejs_virtualGamepad_parent, #ejs .ejs_start_button, #ejs .ejs_context_menu,
 #ejs .ejs_message, #ejs .ejs_popup_container, #ejs .ejs_game_background { display: none !important; }

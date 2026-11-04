@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=11';
-import * as store from './store.js?v=11';
+import * as engine from './engine.js?v=12';
+import * as store from './store.js?v=12';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -18,6 +18,7 @@ const settings = {
   menuWindowMs: 1500,              // swipes this soon after a button press are single steps (menus, dialogs)
   speed: LS.get('speed', false),   // fast forward x2
   audio: LS.get('audio', true),
+  eco: LS.get('eco', false),       // native-resolution rendering, applied at game start
 };
 
 let mode = 'loader';               // 'loader' | 'game' | 'menu'
@@ -262,8 +263,8 @@ function closeDiag() { $('#diag').hidden = true; $('#loader').hidden = false; mo
 // ---------- menu ----------
 function refreshMenu() {
   const set = (act, on) => $(`[data-act=${act}]`).setAttribute('aria-pressed', String(on));
-  set('run', settings.run); set('walk', settings.walk); set('speed', settings.speed); set('audio', settings.audio);
-  const hud = [settings.run && 'Corsa', !settings.walk && 'Passi singoli', settings.speed && 'x2', !settings.audio && 'Muto'].filter(Boolean);
+  set('run', settings.run); set('walk', settings.walk); set('speed', settings.speed); set('audio', settings.audio); set('eco', settings.eco);
+  const hud = [settings.run && 'Corsa', !settings.walk && 'Passi singoli', settings.speed && 'x2', !settings.audio && 'Muto', settings.eco && 'Eco'].filter(Boolean);
   if (perfText && LS.get('perf', true)) hud.push(perfText);
   $('#hud').textContent = hud.join(' · ');
 }
@@ -292,7 +293,7 @@ $('#menu').addEventListener('click', async (e) => {
     case 'run': settings.run = !settings.run; LS.set('run', settings.run); refreshMenu(); break;
     case 'walk': settings.walk = !settings.walk; LS.set('walk2', settings.walk); if (settings.walk) { holdCapable = false; LS.set('holdCapable', false); } refreshMenu(); break;
     case 'speed': settings.speed = !settings.speed; LS.set('speed', settings.speed); applySpeed(); refreshMenu(); break;
-    case 'audio': settings.audio = !settings.audio; LS.set('audio', settings.audio); applyAudio(); refreshMenu(); break;
+    case 'audio': settings.audio = !settings.audio; LS.set('audio', settings.audio); set('eco', settings.eco); applyAudio(); refreshMenu(); break;
     case 'save': {
       let ok = false;
       try { await store.put(`state:${currentRom}:1`, engine.getState()); ok = true; } catch (err) { console.warn(err); }
@@ -302,6 +303,13 @@ $('#menu').addEventListener('click', async (e) => {
       const st = await store.get(`state:${currentRom}:1`);
       if (st) engine.loadState(st);
       closeMenu(); toast(st ? 'Stato caricato' : 'Nessuno stato salvato'); break;
+    }
+    case 'eco': {
+      settings.eco = !settings.eco; LS.set('eco', settings.eco);
+      $('#menu').hidden = true; toast('Riavvio il gioco…');
+      await persist(true);
+      location.href = location.pathname + '?play=' + encodeURIComponent(currentRom);
+      break;
     }
     case 'quit': await quitGame(); break;
   }
@@ -320,6 +328,9 @@ async function startGame(name) {
   const bytes = await store.get('rom:' + name);
   if (!bytes) { setStatus('ROM non trovata: ' + name); startGame.busy = false; renderLibrary(); return; }
   LS.set('last', name);
+  document.body.classList.toggle('eco', settings.eco);
+  const k = Math.min(innerWidth / 240, innerHeight / 160);
+  document.documentElement.style.setProperty('--gba-scale', String(k));
   $('#game').hidden = false; $('#game').style.visibility = 'hidden';
   try {
     await engine.start(name, bytes, (txt) => setStatus(txt));

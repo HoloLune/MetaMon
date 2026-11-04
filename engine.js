@@ -3,6 +3,7 @@
 // EmulatorJS's own UI and keyboard handling are disabled; MetaMon drives it.
 const IDX = { b: 0, select: 2, start: 3, up: 4, down: 5, left: 6, right: 7, a: 8, l: 10, r: 11 };
 
+const LOOP_MS = 0;
 let ejs = null;
 let gm = null;
 
@@ -48,10 +49,18 @@ export function start(name, bytes, onProgress) {
         resolve();
       },
     });
+    // Main loop pacing: RetroArch with vsync off spins with setImmediate; a plain timer lets the CPU sleep
+    // between frames (our patched core reads EJS_loopTimeoutMs). 0 = original behaviour.
+    window.EJS_loopTimeoutMs = LOOP_MS;
+    // WebGL context tuned for a battery device: opaque (no blending with the page), no unused
+    // depth/stencil buffers, ask the GPU for low power. Our patched core reads EJS_glAttrs.
+    window.EJS_glAttrs = { alpha: false, depth: false, stencil: false, antialias: false, powerPreference: 'low-power' };
     // tuning overrides for testing: localStorage metamon.opts (JSON) / metamon.racfg (text)
     try {
       Object.assign(window.EJS_defaultOptions, JSON.parse(localStorage.getItem('metamon.opts') || '{}'));
       window.EJS_extraRetroarchCfg += localStorage.getItem('metamon.racfg') || '';
+      if (localStorage.getItem('metamon.glattrs')) window.EJS_glAttrs = JSON.parse(localStorage.getItem('metamon.glattrs'));
+      if (localStorage.getItem('metamon.loopms') !== null) window.EJS_loopTimeoutMs = Number(localStorage.getItem('metamon.loopms'));
     } catch {}
     const s = document.createElement('script');
     s.src = new URL('ejs/data/loader.js', location.href).href;
