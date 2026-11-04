@@ -107,6 +107,7 @@ function onBack() {
 window.addEventListener('popstate', () => {
   if (mode === 'loader') return;    // let Back leave the app from the loader
   if (mode === 'diag') { diag('Indietro (popstate)'); closeDiag(); return; }
+  if (mode === 'pair') { closePair(); return; }
   armBackTrap(); onBack();
 });
 
@@ -115,6 +116,7 @@ const DESKTOP = { KeyX: 'a', KeyZ: 'b', KeyA: 'l', KeyS: 'r', Space: 'start', Sh
 window.addEventListener('keydown', (e) => {
   resumeAudio();
   if (mode === 'diag') { e.preventDefault(); return; }
+  if (mode === 'pair') { if (e.key === 'Escape' || e.key === 'Backspace') closePair(); return; }
   if (mode === 'menu') {
     if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); closeMenu(); }
     return;                          // native spatial navigation handles the menu
@@ -374,15 +376,24 @@ function peerOptions() {
   return { host, port: Number(port || 443), path: '/', secure: location.protocol === 'https:' && host !== 'localhost' };
 }
 $('#btnPhone').addEventListener('click', () => {
-  $('#phonePanel').hidden = false;
+  mode = 'pair'; armBackTrap();
+  $('#loader').hidden = true; $('#pair').hidden = false; document.activeElement?.blur();
   $('#sendUrl').textContent = new URL('invia.html', location.href).href.replace(/^https?:\/\//, '');
   if (!peer) openPeer();
 });
+function closePair() {
+  try { peer?.destroy(); } catch {}
+  peer = null;
+  $('#pair').hidden = true; $('#loader').hidden = false; mode = 'loader'; renderLibrary();
+}
 function openPeer() {
   const code = String(Math.floor(1000 + Math.random() * 9000));
   $('#pairCode').textContent = code;
-  $('#pairStatus').textContent = 'In attesa del telefono…';
-  peer = new window.Peer('metamon-' + code, peerOptions());
+  $('#pairStatus').textContent = 'Mi collego…';
+  if (!window.Peer) { $('#pairStatus').textContent = 'Errore: libreria di collegamento non caricata. Riapri l\'app.'; return; }
+  try { peer = new window.Peer('metamon-' + code, peerOptions()); }
+  catch (err) { $('#pairStatus').textContent = 'Errore: ' + err.message; return; }
+  peer.on('open', () => { $('#pairStatus').textContent = 'Pronto, in attesa del telefono…'; });
   peer.on('error', (err) => {
     if (err.type === 'unavailable-id') { peer.destroy(); peer = null; openPeer(); return; }
     $('#pairStatus').textContent = 'Errore di connessione: ' + err.type;
@@ -397,7 +408,7 @@ function openPeer() {
         parts = [];
         conn.send({ type: 'ok' });
         const name = await addRom(meta.name, bytes);
-        peer.destroy(); peer = null; $('#phonePanel').hidden = true;
+        peer.destroy(); peer = null; $('#pair').hidden = true; $('#loader').hidden = false; mode = 'loader';
         startGame(name);
         return;
       }

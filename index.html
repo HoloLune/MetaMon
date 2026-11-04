@@ -32,11 +32,6 @@
         <input id="urlInput" type="url" placeholder="https://…/gioco.gba" aria-label="URL della ROM">
         <button type="submit">Scarica</button>
       </form>
-      <div id="phonePanel" hidden>
-        <p>Sul telefono apri<br><strong id="sendUrl"></strong><br>e inserisci il codice</p>
-        <p id="pairCode" class="code">····</p>
-        <p id="pairStatus" class="dim"></p>
-      </div>
     </section>
 
     <section id="tools" hidden>
@@ -49,6 +44,16 @@
       <div id="qr"></div>
     </section>
   </main>
+
+  <div id="pair" class="screen" hidden>
+    <h2>Invia dal telefono</h2>
+    <p>Sul telefono apri</p>
+    <p><strong id="sendUrl"></strong></p>
+    <p>e scrivi questo codice:</p>
+    <p id="pairCode" class="code">····</p>
+    <p id="pairStatus" class="dim"></p>
+    <p class="dim">Indietro per annullare</p>
+  </div>
 
   <div id="diag" class="screen" hidden>
     <h2>Prova comandi</h2>
