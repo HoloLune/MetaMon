@@ -71,7 +71,10 @@ body.eco #ejs { width: 240px; height: 160px; max-width: none; max-height: none; 
   display: flex; align-items: center; justify-content: center; padding: 16px;
 }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; max-width: 568px; }
-.grid button { min-height: 78px; padding: 8px; font-size: 21px; font-weight: 600; }
+.page { width: 100%; max-width: 568px; }
+.pagetitle { margin: 0 0 10px; text-align: center; font-size: 20px; }
+.grid .wide { grid-column: 1 / -1; }
+.grid button { min-height: 92px; padding: 8px; font-size: 21px; font-weight: 600; }
 
 #toast {
   position: fixed; left: 50%; top: 18px; transform: translateX(-50%);

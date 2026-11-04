@@ -3,8 +3,8 @@
 // optional pinch-and-drag pointer events (body has touch-action: none).
 // two engines with the same API: "classico" (EmulatorJS/RetroArch) and "nuovo" (our own mGBA build)
 const engineName = new URLSearchParams(location.search).get('engine') || (() => { try { return JSON.parse(localStorage.getItem('metamon.engine')) || 'classic'; } catch { return 'classic'; } })();
-const engine = await import(engineName === 'new' ? './engine2.js?v=23' : './engine.js?v=23');
-import * as store from './store.js?v=23';
+const engine = await import(engineName === 'new' ? './engine2.js?v=24' : './engine.js?v=24');
+import * as store from './store.js?v=24';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -104,7 +104,11 @@ function onDirection(dir, repeat) {
 let backTimer = null;
 function armBackTrap() { if (!history.state?.metamonTrap) history.pushState({ metamonTrap: true }, ''); }
 function onBack() {
-  if (mode === 'menu') { closeMenu(); return; }
+  if (mode === 'menu') {
+    if (!$('#backup').hidden) { $('#backup').hidden = true; $('#menu').hidden = false; $('#menu [data-act=backup]').focus(); return; }
+    if (inSettings()) { showPage('main'); $('#mainPage [data-act=settings]').focus(); return; }
+    closeMenu(); return;
+  }
   if (mode !== 'game') return;
   // (a double Back turns the glasses' display off, so it can't open the menu: double pinch does)
   if (walking) { stopWalking(); markButton(); return; }       // Back while walking = just stop
@@ -125,7 +129,7 @@ window.addEventListener('keydown', (e) => {
   if (mode === 'pair') { if (e.key === 'Escape' || e.key === 'Backspace') closePair(); return; }
   if (mode === 'menu') {
     if (e.repeat && e.key === 'Enter') { e.preventDefault(); return; }   // still holding the long pinch
-    if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); closeMenu(); }
+    if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); onBack(); }
     return;                          // native spatial navigation handles the menu
   }
   if (mode !== 'game') return;
@@ -287,7 +291,8 @@ function closeDiag() { $('#diag').hidden = true; $('#loader').hidden = false; mo
 const SCREEN_LABEL = { fit: 'normale', zoom: 'zoom', stretch: 'pieno' };
 const BRIGHT_LABEL = ['normale', 'media', 'alta'];
 function refreshMenu() {
-  const set = (act, on) => $(`[data-act=${act}]`).setAttribute('aria-pressed', String(on));
+  // toggles say their state in words (colour alone is easy to miss on the glasses)
+  const set = (act, on) => { const el = $(`[data-act=${act}]`); el.dataset.label ??= el.textContent; el.setAttribute('aria-pressed', String(on)); el.textContent = el.dataset.label + (act === 'run' ? '' : on ? ': sì' : ': no'); };
   set('run', settings.run); set('walk', settings.walk); set('speed', settings.speed); set('audio', settings.audio); set('eco', settings.eco);
   $('[data-act=screen]').textContent = 'Schermo: ' + SCREEN_LABEL[settings.screen];
   $('[data-act=bright]').textContent = 'Luminosità: ' + BRIGHT_LABEL[settings.bright];
@@ -303,9 +308,12 @@ function openMenu() {
   releaseAll(); walking = null;
   mode = 'menu'; engine.pause();
   refreshMenu();
+  showPage('main');
   $('#menu').hidden = false;
   $('#menu [data-act=resume]').focus();
 }
+function showPage(p) { $('#mainPage').hidden = p !== 'main'; $('#setPage').hidden = p !== 'settings'; }
+const inSettings = () => !$('#menu').hidden && !$('#setPage').hidden;
 function closeMenu(then) {
   if (mode !== 'menu') return;
   $('#menu').hidden = true; $('#backup').hidden = true;
@@ -320,6 +328,8 @@ $('#menu').addEventListener('click', async (e) => {
   if (btn) { markButton(); closeMenu(() => tap(btn, 120)); return; }
   switch (act) {
     case 'resume': closeMenu(); break;
+    case 'settings': showPage('settings'); $('#setPage [data-act=back]').focus(); break;
+    case 'back': showPage('main'); $('#mainPage [data-act=settings]').focus(); break;
     case 'run': settings.run = !settings.run; LS.set('run', settings.run); refreshMenu(); break;
     case 'walk': settings.walk = !settings.walk; LS.set('walk2', settings.walk); if (settings.walk) { holdCapable = false; LS.set('holdCapable', false); } refreshMenu(); break;
     case 'speed': settings.speed = !settings.speed; LS.set('speed', settings.speed); applySpeed(); refreshMenu(); break;
