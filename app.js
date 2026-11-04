@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=9';
-import * as store from './store.js?v=9';
+import * as engine from './engine.js?v=10';
+import * as store from './store.js?v=10';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -347,21 +347,31 @@ async function startGame(name) {
 }
 // speed meter in the HUD: display refresh rate vs emulated frames per second (GBA = 60)
 let perfText = '';
+function fitScreen() {
+  const k = Math.min(innerWidth / 240, innerHeight / 160);
+  document.documentElement.style.setProperty('--gba-scale', String(k));
+}
+addEventListener('resize', fitScreen); fitScreen();
 function startPerfMeter() {
-  let raf = 0, f0 = engine.frameCount(), t0 = performance.now();
-  const tick = () => { raf++; requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+  // measure the display refresh only for the first seconds (a permanent rAF loop costs power)
+  let raf = 0, hz = null;
+  const t0 = performance.now();
+  const tick = () => { raf++; if (performance.now() - t0 < 4000) requestAnimationFrame(tick); else hz = Math.round(raf / ((performance.now() - t0) / 1000)); };
+  requestAnimationFrame(tick);
+  let f0 = engine.frameCount(), tf = performance.now();
   setInterval(() => {
-    const t = performance.now(), f = engine.frameCount(), dt = (t - t0) / 1000;
-    perfText = `schermo ${Math.round(raf / dt)} Hz · gioco ${Math.round((f - f0) / dt)} fps`;
-    raf = 0; f0 = f; t0 = t;
+    if (document.hidden) return;
+    const t = performance.now(), f = engine.frameCount();
+    perfText = (hz ? `schermo ${hz} Hz · ` : '') + `gioco ${Math.round((f - f0) / ((t - tf) / 1000))} fps`;
+    f0 = f; tf = t;
     if (LS.get('perf', true)) refreshMenu();
-  }, 2000);
+  }, 3000);
 }
 let lastSrm = null;
 async function persist(withState) {
   if (!currentRom) return;
   try {
-    const srm = engine.getSave();
+    const srm = engine.getSave(withState);
     if (srm && srm.length) { const h = hash(srm); if (h !== lastSrm) { await store.put('srm:' + currentRom, srm.slice()); lastSrm = h; } }
   } catch (e) { console.warn('save', e); }
   if (withState && (mode === 'game' || mode === 'menu')) {
@@ -374,7 +384,12 @@ async function quitGame() {
   await persist(true);
   location.href = location.pathname;
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden) persist(true); });
+// stop emulating while the display is off or the app is in the background (saves battery and heat)
+document.addEventListener('visibilitychange', () => {
+  if (!currentRom) return;
+  if (document.hidden) { persist(true); engine.pause(); }
+  else if (mode === 'game') { engine.resume(); resumeAudio(); }
+});
 window.addEventListener('pagehide', () => persist(true));
 
 // ---------- library / adding ROMs ----------

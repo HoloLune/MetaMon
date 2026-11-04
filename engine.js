@@ -48,6 +48,11 @@ export function start(name, bytes, onProgress) {
         resolve();
       },
     });
+    // tuning overrides for testing: localStorage metamon.opts (JSON) / metamon.racfg (text)
+    try {
+      Object.assign(window.EJS_defaultOptions, JSON.parse(localStorage.getItem('metamon.opts') || '{}'));
+      window.EJS_extraRetroarchCfg += localStorage.getItem('metamon.racfg') || '';
+    } catch {}
     const s = document.createElement('script');
     s.src = new URL('ejs/data/loader.js', location.href).href;
     s.onerror = () => reject(new Error('Impossibile caricare EmulatorJS'));
@@ -75,7 +80,8 @@ export function resumeAudio() {
 }
 export function getState() { return gm.getState().slice(); }
 export function loadState(bytes) { gm.loadState(bytes); }
-export function getSave() { try { return gm.getSaveFile(); } catch { return null; } }
+// flush=false just reads the .srm RetroArch already wrote (autosave every 60 s), no extra work
+export function getSave(flush = true) { try { return gm.getSaveFile(flush ? undefined : false); } catch { return null; } }
 export function restoreSave(bytes) {
   const FS = gm.FS, path = gm.getSaveFilePath();
   let cp = '';
