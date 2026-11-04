@@ -8,12 +8,12 @@
   <meta name="description" content="Gioca ai tuoi giochi Game Boy Advance sugli occhiali Meta Ray-Ban Display. La ROM la carichi tu.">
   <title>MetaMon</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <main id="loader" class="screen">
     <h1>MetaMon</h1>
-    <p class="dim" id="ver">versione 6</p>
+    <p class="dim" id="ver">versione 7</p>
     <p id="status" class="dim">Avvio dell'emulatore…</p>
 
     <section id="library" hidden>
@@ -25,9 +25,9 @@
       <h2>Aggiungi una ROM</h2>
       <div class="list">
         <button id="btnPhone" type="button">Invia dal telefono</button>
-        <label class="filebtn" for="fileInput">Scegli file</label>
-        <input id="fileInput" type="file" accept=".gba,.gbc,.gb,.zip,.7z">
-        <button id="btnUrl" type="button">Scarica da URL</button>
+        <button id="btnFile" class="desktop-only" type="button">Scegli file</button>
+        <input id="fileInput" type="file" accept=".gba,.gbc,.gb,.zip,.7z" tabindex="-1" aria-hidden="true">
+        <button id="btnUrl" class="desktop-only" type="button">Scarica da URL</button>
       </div>
       <form id="urlForm" hidden>
         <input id="urlInput" type="url" placeholder="https://…/gioco.gba" aria-label="URL della ROM">
@@ -113,6 +113,6 @@
   </script>
   <script src="vendor/qrcode.js"></script>
   <script src="vendor/peerjs.min.js"></script>
-  <script type="module" src="app.js?v=6"></script>
+  <script type="module" src="app.js?v=7"></script>
 </body>
 </html>

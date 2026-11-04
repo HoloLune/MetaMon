@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=6';
-import * as store from './store.js?v=6';
+import * as engine from './engine.js?v=7';
+import * as store from './store.js?v=7';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -173,7 +173,9 @@ let lastFocused = null;
 document.addEventListener('focusin', (e) => { if (e.target !== document.body && e.target.id !== 'game') lastFocused = e.target; });
 const onControl = (el) => el?.closest?.('button, a, input, label, select, textarea');
 // keep the focused control focused when the tap lands elsewhere
-window.addEventListener('mousedown', (e) => { if (!onControl(e.target)) e.preventDefault(); }, { capture: true });
+// Glasses = no precise hovering pointer (?glasses=1 forces it for testing on a computer).
+const isGlasses = new URLSearchParams(location.search).has('glasses') || !matchMedia('(hover: hover) and (pointer: fine)').matches;
+window.addEventListener('mousedown', (e) => { if (isGlasses || !onControl(e.target)) e.preventDefault(); }, { capture: true });
 window.addEventListener('pointerdown', (e) => {
   drag = { x: e.clientX, y: e.clientY, t: performance.now(), dir: null, id: e.pointerId, target: e.target };
   if (mode === 'game') { try { e.target.setPointerCapture?.(e.pointerId); } catch {} }
@@ -200,19 +202,32 @@ function endDrag(e) {
   if (moved > 24 || performance.now() - d.t > 800) return;
   // it was a tap / pinch (skip if the same pinch also produced an Enter key)
   if (performance.now() - lastEnterAt < 400) return;
-  if (mode === 'game') {
-    resumeAudio();
-    if (walking) { stopWalking(); return; }
-    markButton(); tap('a'); return;
-  }
-  if (onControl(d.target)) return;            // a real tap on a control: the browser clicks it
-  const el = (document.activeElement && document.activeElement !== document.body) ? document.activeElement : lastFocused;
-  if (el && document.contains(el) && !el.closest('[hidden]')) {
-    el.focus();
-    if (el.tagName === 'LABEL' && el.htmlFor) document.getElementById(el.htmlFor)?.click();
-    else el.click();
-  }
+  if (mode === 'game') { lastTapAt = performance.now(); pinchInGame(); }
 }
+let lastTapAt = 0;
+function pinchInGame() {
+  resumeAudio();
+  if (walking) { stopWalking(); return; }
+  markButton(); tap('a');
+}
+// The glasses turn a pinch into a mouse click at the centre of the screen (300,300),
+// whatever is under it. Redirect such stray clicks to the control that has the focus ring.
+window.addEventListener('click', (e) => {
+  if (!e.isTrusted) return;
+  if (mode === 'game') {
+    // a pinch that only produced a click (no pointer tap, no Enter) still means A
+    const now = performance.now();
+    if (now - lastTapAt > 400 && now - lastEnterAt > 400) pinchInGame();
+    e.preventDefault(); e.stopImmediatePropagation(); return;
+  }
+  if (!isGlasses) return;
+  const el = document.activeElement;
+  if (!el || el === document.body || el.contains(e.target)) return;   // normal click on the focused control
+  if (e.target.closest?.('#fileInput')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (performance.now() - lastEnterAt < 400) return;   // the Enter key already activated it
+  if (el.matches('button, a, input[type=submit]')) el.click();
+}, { capture: true });
 window.addEventListener('pointerup', endDrag);
 window.addEventListener('pointercancel', endDrag);
 
@@ -379,6 +394,7 @@ $('#fileInput').addEventListener('change', async (e) => {
   e.target.value = '';
   startGame(name);
 });
+$('#btnFile').addEventListener('click', () => $('#fileInput').click());
 $('#btnUrl').addEventListener('click', () => { $('#urlForm').hidden = false; $('#urlInput').focus(); });
 $('#urlForm').addEventListener('submit', (e) => { e.preventDefault(); fetchRom($('#urlInput').value.trim()); });
 async function fetchRom(url) {

@@ -33,7 +33,9 @@ button, .filebtn, input[type=url] {
   padding: 14px 18px; min-height: 60px;
 }
 .filebtn { display: flex; align-items: center; justify-content: center; cursor: pointer; }
-#fileInput { position: absolute; width: 1px; height: 1px; opacity: 0; }
+#fileInput { display: none; }
+/* file picker and URL typing don't work on the glasses: only on computers/phones with a real pointer */
+@media not all and (hover: hover) and (pointer: fine) { .desktop-only { display: none !important; } }
 button:focus-visible, .filebtn:focus-within, input:focus-visible, button:focus {
   outline: 4px solid var(--focus); outline-offset: 2px; border-color: var(--focus);
 }
