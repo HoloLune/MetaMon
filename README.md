@@ -1,6 +1,6 @@
 # MetaMon
 
-Emulatore Game Boy Advance (mGBA, nella versione single-thread di EmulatorJS) pensato per gli occhiali **Meta Ray-Ban Display**.
+Emulatore Game Boy Advance (mGBA, con due motori: uno compilato apposta e uno classico basato su EmulatorJS) pensato per gli occhiali **Meta Ray-Ban Display**.
 Nessuna ROM è inclusa: ognuno carica la propria copia.
 
 ## Comandi sugli occhiali
