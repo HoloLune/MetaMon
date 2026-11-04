@@ -13,7 +13,7 @@ let gm = null;
 
 export const isRunning = () => !!gm;
 
-export function start(name, bytes, onProgress) {
+export function start(name, bytes, onProgress, opts = {}) {
   return new Promise((resolve, reject) => {
     Object.assign(window, {
       EJS_player: '#ejs',
@@ -55,6 +55,7 @@ export function start(name, bytes, onProgress) {
     });
     // Main loop pacing: RetroArch with vsync off spins with setImmediate; a plain timer lets the CPU sleep
     // between frames (our patched core reads EJS_loopTimeoutMs). 0 = original behaviour.
+    if (opts.stretch) window.EJS_extraRetroarchCfg += 'aspect_ratio_index = "24"\nvideo_aspect_ratio_auto = "false"\n';
     window.EJS_loopTimeoutMs = LOOP_MS;
     // While waiting for room in the audio buffer RetroArch sleeps 1 ms at a time (Asyncify unwind/rewind
     // each time: ~300 wakeups/s). Sleeping a few ms is plenty with a 160 ms audio buffer.

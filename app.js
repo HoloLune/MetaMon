@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=17';
-import * as store from './store.js?v=17';
+import * as engine from './engine.js?v=18';
+import * as store from './store.js?v=18';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -19,6 +19,7 @@ const settings = {
   speed: LS.get('speed', false),   // fast forward x2
   audio: LS.get('audio', true),
   eco: LS.get('eco', false),       // native-resolution rendering, applied at game start
+  screen: LS.get('screen', 'fit'), // fit (3:2, black bands) | zoom (fills the height, crops the sides) | stretch
 };
 
 let mode = 'loader';               // 'loader' | 'game' | 'menu'
@@ -117,6 +118,7 @@ window.addEventListener('keydown', (e) => {
   if (mode === 'diag') { e.preventDefault(); return; }
   if (mode === 'pair') { if (e.key === 'Escape' || e.key === 'Backspace') closePair(); return; }
   if (mode === 'menu') {
+    if (e.repeat && e.key === 'Enter') { e.preventDefault(); return; }   // still holding the long pinch
     if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); closeMenu(); }
     return;                          // native spatial navigation handles the menu
   }
@@ -203,16 +205,31 @@ function endDrag(e) {
   if (mode === 'game') { lastTapAt = performance.now(); pinchInGame(); }
 }
 let lastTapAt = -Infinity;
-// pinch = A; two pinches within 350 ms = menu (START, SELECT, L, R, saves…)
-let lastPinchAt = -Infinity;
+// pinch = A. Menu (START, SELECT, L, R, saves…) = long pinch (held 0.6 s), or three quick pinches
+// as a fallback. Two quick pinches no longer open it: that happens all the time when skipping dialogue.
+let pinchTimes = [];
 function pinchInGame() {
   resumeAudio();
   const now = performance.now();
-  if (now - lastPinchAt < 350) { lastPinchAt = 0; release('a'); openMenu(); return; }
-  lastPinchAt = now;
+  pinchTimes = pinchTimes.filter((t) => now - t < 600); pinchTimes.push(now);
+  if (pinchTimes.length >= 3) { pinchTimes = []; release('a'); openMenu(); return; }
   if (walking) { stopWalking(); return; }
   markButton(); tap('a');
 }
+// long pinch: whatever "finger down" signal the glasses send (Enter keydown, mouse/pointer down)
+let longTimer = 0, longOpened = false;
+function holdStart() {
+  if (mode !== 'game' || longTimer) return;
+  longTimer = setTimeout(() => { longTimer = 0; if (mode !== 'game' || drag?.dir) return; longOpened = true; pinchTimes = []; release('a'); openMenu(); }, 600);
+}
+function holdEnd() { clearTimeout(longTimer); longTimer = 0; if (longOpened) setTimeout(() => { longOpened = false; }, 400); }
+window.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.repeat) holdStart(); }, { capture: true });
+window.addEventListener('keyup', (e) => { if (e.key === 'Enter') holdEnd(); }, { capture: true });
+window.addEventListener('mousedown', holdStart, { capture: true });
+window.addEventListener('mouseup', holdEnd, { capture: true });
+window.addEventListener('pointerdown', holdStart, { capture: true });
+window.addEventListener('pointerup', holdEnd, { capture: true });
+window.addEventListener('pointercancel', holdEnd, { capture: true });
 // The glasses turn a pinch into a mouse click at the centre of the screen (300,300),
 // whatever is under it. Redirect such stray clicks to the control that has the focus ring.
 window.addEventListener('click', (e) => {
@@ -226,8 +243,8 @@ window.addEventListener('click', (e) => {
   if (!isGlasses) return;
   const el = document.activeElement;
   if (!el || el === document.body || el.contains(e.target)) return;   // normal click on the focused control
-  // the second pinch of the double pinch that opened the menu must not press a menu button
-  if (mode === 'menu' && performance.now() - menuOpenedAt < 500) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  // the end of the long pinch / the last quick pinch that opened the menu must not press a menu button
+  if (mode === 'menu' && (longOpened || performance.now() - menuOpenedAt < 500)) { longOpened = false; e.preventDefault(); e.stopImmediatePropagation(); return; }
   if (e.target.closest?.('#fileInput')) return;
   e.preventDefault(); e.stopImmediatePropagation();
   if (performance.now() - lastEnterAt < 400) return;   // the Enter key already activated it
@@ -265,9 +282,11 @@ $('#btnDiag').addEventListener('click', () => {
 function closeDiag() { $('#diag').hidden = true; $('#loader').hidden = false; mode = 'loader'; renderLibrary(); }
 
 // ---------- menu ----------
+const SCREEN_LABEL = { fit: 'normale', zoom: 'zoom', stretch: 'pieno' };
 function refreshMenu() {
   const set = (act, on) => $(`[data-act=${act}]`).setAttribute('aria-pressed', String(on));
   set('run', settings.run); set('walk', settings.walk); set('speed', settings.speed); set('audio', settings.audio); set('eco', settings.eco);
+  $('[data-act=screen]').textContent = 'Schermo: ' + SCREEN_LABEL[settings.screen];
   const hud = [settings.run && 'Corsa', !settings.walk && 'Passi singoli', settings.speed && 'x2', !settings.audio && 'Muto', settings.eco && 'Eco'].filter(Boolean);
   if (perfText && LS.get('perf', true)) hud.push(perfText);
   $('#hud').textContent = hud.join(' · ');
@@ -310,6 +329,13 @@ $('#menu').addEventListener('click', async (e) => {
       if (st) engine.loadState(st);
       closeMenu(); toast(st ? 'Stato caricato' : 'Nessuno stato salvato'); break;
     }
+    case 'screen': {
+      settings.screen = { fit: 'zoom', zoom: 'stretch', stretch: 'fit' }[settings.screen] || 'fit'; LS.set('screen', settings.screen);
+      $('#menu').hidden = true; toast('Schermo ' + SCREEN_LABEL[settings.screen] + ', riavvio…');
+      await persist(true);
+      location.href = location.pathname + '?play=' + encodeURIComponent(currentRom);
+      break;
+    }
     case 'eco': {
       settings.eco = !settings.eco; LS.set('eco', settings.eco);
       $('#menu').hidden = true; toast('Riavvio il gioco…');
@@ -335,11 +361,12 @@ async function startGame(name) {
   if (!bytes) { setStatus('ROM non trovata: ' + name); startGame.busy = false; renderLibrary(); return; }
   LS.set('last', name);
   document.body.classList.toggle('eco', settings.eco);
+  document.body.dataset.screen = settings.eco ? 'fit' : settings.screen;
   const k = Math.min(innerWidth / 240, innerHeight / 160);
   document.documentElement.style.setProperty('--gba-scale', String(k));
   $('#game').hidden = false; $('#game').style.visibility = 'hidden';
   try {
-    await engine.start(name, bytes, (txt) => setStatus(txt));
+    await engine.start(name, bytes, (txt) => setStatus(txt), { stretch: !settings.eco && settings.screen === 'stretch' });
   } catch (err) {
     console.error(err);
     $('#game').hidden = true; $('#game').style.visibility = '';
@@ -366,7 +393,7 @@ async function startGame(name) {
   $('#game').focus();
   if (settings.run) press('b');
   refreshMenu();
-  toast('Pinch = A · Indietro = B · doppio pinch = menu', 3000);
+  toast('Pinch = A · Indietro = B · pinch lungo = menu', 3000);
   startPerfMeter();
   setInterval(() => persist(false), 10000);
   setInterval(() => persist(true), 30000);
