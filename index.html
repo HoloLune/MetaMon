@@ -8,12 +8,12 @@
   <meta name="description" content="Gioca ai tuoi giochi Game Boy Advance sugli occhiali Meta Ray-Ban Display. La ROM la carichi tu.">
   <title>MetaMon</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
   <main id="loader" class="screen">
     <h1>MetaMon</h1>
-    <p class="dim" id="ver">versione 22</p>
+    <p class="dim" id="ver">versione 23</p>
     <p id="status" class="dim">Avvio dell'emulatore…</p>
 
     <section id="library" hidden>
@@ -24,7 +24,7 @@
     <section id="addRom" hidden>
       <h2>Aggiungi una ROM</h2>
       <div class="list">
-        <button id="btnPhone" type="button">Invia dal telefono</button>
+        <button id="btnPhone" type="button">Telefono: ROM e salvataggi</button>
         <button id="btnFile" class="desktop-only" type="button">Scegli file</button>
         <input id="fileInput" type="file" accept=".gba,.gbc,.gb,.zip,.7z" tabindex="-1" aria-hidden="true">
         <button id="btnUrl" class="desktop-only" type="button">Scarica da URL</button>
@@ -47,7 +47,7 @@
   </main>
 
   <div id="pair" class="screen" hidden>
-    <h2>Invia dal telefono</h2>
+    <h2>Collega il telefono</h2>
     <p>Sul telefono apri</p>
     <p><strong id="sendUrl"></strong></p>
     <p>e scrivi questo codice:</p>
@@ -79,6 +79,7 @@
       <button data-act="speed" type="button">x2 camminando</button>
       <button data-act="audio" type="button">Audio</button>
       <button data-act="screen" type="button">Schermo</button>
+      <button data-act="bright" type="button">Luminosità</button>
       <button data-act="eco" type="button">Eco</button>
       <button data-act="engine" type="button">Motore</button>
       <button data-act="save" type="button">Salva stato</button>
@@ -92,6 +93,10 @@
     <div class="list" id="bakList"></div>
   </div>
 
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="gamma1" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="gamma" exponent=".75"/><feFuncG type="gamma" exponent=".75"/><feFuncB type="gamma" exponent=".75"/></feComponentTransfer></filter>
+    <filter id="gamma2" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="gamma" exponent=".55"/><feFuncG type="gamma" exponent=".55"/><feFuncB type="gamma" exponent=".55"/></feComponentTransfer></filter>
+  </svg>
   <div id="toast" role="status" hidden></div>
   <pre id="evlog" aria-hidden="true"></pre>
 
@@ -119,6 +124,6 @@
     window.addEventListener('unhandledrejection', function (e) { add(ts() + 'ERRORE: ' + (e.reason && e.reason.message || e.reason)); });
   })();
   </script>
-  <script type="module" src="app.js?v=22"></script>
+  <script type="module" src="app.js?v=23"></script>
 </body>
 </html>

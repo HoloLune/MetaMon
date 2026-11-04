@@ -116,6 +116,8 @@ export function start(name, bytes, onProgress, opts = {}) {
   });
 }
 
+// classic engine: gamma through an SVG filter on the canvas (see index.html)
+export function setBrightness(level) { const c = document.querySelector('#ejs canvas'); if (c) c.style.filter = level ? `url(#gamma${level})` : ''; }
 export function frameCount() { try { return gm.getFrameNum(); } catch { return 0; } }
 export function press(b) { gm?.simulateInput(0, IDX[b], 1); }
 export function release(b) { gm?.simulateInput(0, IDX[b], 0); }

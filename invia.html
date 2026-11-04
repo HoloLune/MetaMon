@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MetaMon · Invia ROM</title>
+  <title>MetaMon · Telefono</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <style>
     :root { --bg:#0e0f12; --fg:#f2f2f2; --dim:#a0a3ab; --accent:#3ddc84; --card:#1a1c21; --line:#30333a; }
@@ -20,52 +20,107 @@
     button:disabled { opacity:.5; }
     progress { width:100%; height:10px; }
     #msg { min-height:1.4em; color:var(--dim); margin:0; }
+    h2 { font-size:18px; margin:26px 0 4px; }
+    .row { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center; }
+    .row strong { overflow-wrap:anywhere; font-size:15px; }
+    .row button { padding:10px 12px; font-size:15px; }
+    button.alt { background:transparent; color:var(--fg); border:1px solid var(--line); }
   </style>
 </head>
 <body>
 <main>
-  <h1>Invia una ROM agli occhiali</h1>
-  <p>Sugli occhiali apri MetaMon, scegli «Invia dal telefono» e scrivi qui il codice che vedi. Il file passa direttamente dal telefono agli occhiali.</p>
+  <h1>MetaMon: telefono</h1>
+  <p>Sugli occhiali apri MetaMon, scegli «Telefono: ROM e salvataggi» e scrivi qui il codice che vedi. I file passano direttamente tra telefono e occhiali.</p>
   <form class="card" id="f">
     <label>Codice sugli occhiali <input id="code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off"></label>
-    <label>File ROM (.gba) <input id="file" type="file" accept=".gba,.gbc,.gb,.zip,.7z" required></label>
-    <button id="go" type="submit">Invia</button>
-    <progress id="bar" max="1" value="0" hidden></progress>
+    <button id="connect" type="submit">Collega</button>
     <p id="msg" role="status"></p>
   </form>
+  <section id="linked" hidden>
+    <h2>Invia una ROM</h2>
+    <div class="card">
+      <label>File ROM (.gba) <input id="file" type="file" accept=".gba,.gbc,.gb,.zip,.7z"></label>
+      <button id="go" type="button">Invia e gioca</button>
+      <progress id="bar" max="1" value="0" hidden></progress>
+    </div>
+    <h2>Salvataggi</h2>
+    <p>Scarica una copia del salvataggio del gioco (file .sav, valido anche in altri emulatori) o rimettine uno sugli occhiali.</p>
+    <div class="card" id="saves"></div>
+    <input id="savefile" type="file" accept=".sav,.srm" hidden>
+  </section>
 </main>
 <script src="vendor/peerjs.min.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
 const code = location.hash.replace('#', ''); if (/^\d{4}$/.test(code)) $('#code').value = code;
 const msg = (t) => ($('#msg').textContent = t);
+let conn = null, peer = null, putFor = null;
+
 $('#f').addEventListener('submit', (e) => {
   e.preventDefault();
-  const file = $('#file').files[0]; if (!file) return;
-  $('#go').disabled = true; msg('Mi collego agli occhiali…');
+  $('#connect').disabled = true; msg('Mi collego agli occhiali…');
   const ph = new URLSearchParams(location.search).get('peerhost');
   const opts = ph ? { host: ph.split(':')[0], port: Number(ph.split(':')[1] || 443), path: '/', secure: location.protocol === 'https:' && !ph.startsWith('localhost') } : {};
-  const peer = new Peer(opts);
-  peer.on('error', (err) => { msg('Errore: ' + (err.type === 'peer-unavailable' ? 'codice non trovato, controlla gli occhiali' : err.type)); $('#go').disabled = false; peer.destroy(); });
+  peer = new Peer(opts);
+  peer.on('error', (err) => { msg('Errore: ' + (err.type === 'peer-unavailable' ? 'codice non trovato, controlla gli occhiali' : err.type)); $('#connect').disabled = false; peer.destroy(); });
   peer.on('open', () => {
-    const conn = peer.connect('metamon-' + $('#code').value, { reliable: true });
-    conn.on('open', async () => {
-      const buf = await file.arrayBuffer();
-      conn.send({ type: 'meta', name: file.name, size: buf.byteLength });
-      const bar = $('#bar'); bar.hidden = false;
-      const CH = 64 * 1024;
-      for (let o = 0; o < buf.byteLength; o += CH) {
-        conn.send(buf.slice(o, o + CH));
-        const dc = conn.dataChannel;
-        while (dc && dc.bufferedAmount > 4 * 1024 * 1024) await new Promise((r) => setTimeout(r, 30));
-        bar.value = Math.min(1, (o + CH) / buf.byteLength);
-        msg('Invio… ' + Math.round(bar.value * 100) + '%');
-      }
-      conn.send({ type: 'done' });
-      msg('Inviato, attendo conferma…');
-    });
-    conn.on('data', (d) => { if (d && d.type === 'ok') { msg('Fatto! Il gioco parte sugli occhiali.'); $('#go').disabled = false; setTimeout(() => peer.destroy(), 1500); } });
+    conn = peer.connect('metamon-' + $('#code').value, { reliable: true });
+    conn.on('open', () => { conn.send({ type: 'hello' }); });
+    conn.on('close', () => { msg('Collegamento chiuso.'); $('#linked').hidden = true; $('#connect').disabled = false; });
+    conn.on('data', onData);
   });
+});
+
+function onData(d) {
+  if (!d) return;
+  if (d.type === 'list') { msg('Collegato agli occhiali.'); $('#linked').hidden = false; renderSaves(d.games); }
+  if (d.type === 'save') {
+    if (!d.data) { msg('Nessun salvataggio per ' + d.rom); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([d.data], { type: 'application/octet-stream' }));
+    a.download = d.rom.replace(/\.[^.]+$/, '') + '.sav';
+    document.body.appendChild(a); a.click(); a.remove();
+    msg('Salvataggio scaricato: ' + a.download);
+  }
+  if (d.type === 'saved') { msg(d.ok ? 'Salvataggio caricato sugli occhiali. Al prossimo avvio il gioco riparte da lì.' : 'Salvataggio rifiutato.'); if (d.games) renderSaves(d.games); }
+  if (d.type === 'ok') { msg('Fatto! Il gioco parte sugli occhiali.'); setTimeout(() => peer.destroy(), 1500); }
+}
+
+function renderSaves(games) {
+  const box = $('#saves'); box.textContent = '';
+  if (!games.length) { box.textContent = 'Nessun gioco sugli occhiali.'; return; }
+  for (const g of games) {
+    const row = document.createElement('div'); row.className = 'row';
+    const name = document.createElement('strong'); name.textContent = g.rom; row.appendChild(name);
+    const dl = document.createElement('button'); dl.type = 'button'; dl.textContent = 'Scarica'; dl.disabled = !g.hasSave;
+    dl.addEventListener('click', () => { msg('Chiedo il salvataggio…'); conn.send({ type: 'getsave', rom: g.rom }); });
+    const up = document.createElement('button'); up.type = 'button'; up.className = 'alt'; up.textContent = 'Carica .sav';
+    up.addEventListener('click', () => { putFor = g.rom; $('#savefile').value = ''; $('#savefile').click(); });
+    row.append(dl, up); box.appendChild(row);
+  }
+}
+$('#savefile').addEventListener('change', async () => {
+  const f = $('#savefile').files[0]; if (!f || !putFor) return;
+  if (!confirm('Sostituire il salvataggio di ' + putFor + ' con ' + f.name + '? Quello attuale resta tra i backup.')) return;
+  conn.send({ type: 'putsave', rom: putFor, data: await f.arrayBuffer() }); msg('Invio il salvataggio…');
+});
+
+$('#go').addEventListener('click', async () => {
+  const file = $('#file').files[0]; if (!file || !conn) return;
+  $('#go').disabled = true;
+  const buf = await file.arrayBuffer();
+  conn.send({ type: 'meta', name: file.name, size: buf.byteLength });
+  const bar = $('#bar'); bar.hidden = false;
+  const CH = 64 * 1024;
+  for (let o = 0; o < buf.byteLength; o += CH) {
+    conn.send(buf.slice(o, o + CH));
+    const dc = conn.dataChannel;
+    while (dc && dc.bufferedAmount > 4 * 1024 * 1024) await new Promise((r) => setTimeout(r, 30));
+    bar.value = Math.min(1, (o + CH) / buf.byteLength);
+    msg('Invio… ' + Math.round(bar.value * 100) + '%');
+  }
+  conn.send({ type: 'done' });
+  msg('Inviato, attendo conferma…');
 });
 </script>
 </body>

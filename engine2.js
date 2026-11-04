@@ -11,7 +11,7 @@ let fps = 59.7275, frameMs = 1000 / fps;
 let gl = null, tex = null, texW = 256, texH = 256, canvas = null, resizeObs = null;
 let actx = null, node = null, gain = null, srcRate = 32768;
 let queuedSec = 0, queuedAt = 0;   // audio buffered in the worklet, as last reported
-let restoredLen = 0, underruns = 0;
+let restoredLen = 0, underruns = 0, gamma = 1;
 
 export const isRunning = () => loaded;
 
@@ -56,7 +56,8 @@ function loop() {
 
 // ---------- video ----------
 const VS = 'attribute vec2 p;varying vec2 t;uniform vec2 s;void main(){t=(p*vec2(.5,-.5)+.5)*s;gl_Position=vec4(p,0.,1.);}';
-const FS = 'precision mediump float;varying vec2 t;uniform sampler2D x;void main(){gl_FragColor=vec4(texture2D(x,t).rgb,1.);}';
+// g < 1 lifts dark tones: on the additive display dark colours are nearly invisible
+const FS = 'precision mediump float;varying vec2 t;uniform sampler2D x;uniform float g;void main(){gl_FragColor=vec4(pow(texture2D(x,t).rgb,vec3(g)),1.);}';
 function setupVideo() {
   const host = document.querySelector('#ejs');
   host.textContent = '';
@@ -80,6 +81,8 @@ function setupVideo() {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, texW, texH, 0, gl.RGB, gl.UNSIGNED_SHORT_5_6_5, null);
   gl.uniform1i(gl.getUniformLocation(prog, 'x'), 0);
   canvas.__scale = gl.getUniformLocation(prog, 's');
+  canvas.__gamma = gl.getUniformLocation(prog, 'g');
+  gl.uniform1f(canvas.__gamma, gamma);
   const fit = () => {
     // layout size (not the transformed one: in Eco mode the compositor does the scaling)
     canvas.width = Math.max(1, canvas.offsetWidth); canvas.height = Math.max(1, canvas.offsetHeight);
@@ -176,6 +179,7 @@ export function restoreSave(bytes) {
   M.HEAPU8.set(bytes.subarray(0, size), p);
   restoredLen = Math.min(bytes.length, size);
 }
+export function setBrightness(level) { gamma = [1, 0.75, 0.55][level] ?? 1; if (gl) { gl.uniform1f(canvas.__gamma, gamma); draw(); } }
 export const liveScreen = true;   // screen modes change without restarting
 
 // RetroArch wraps states in "RASTATE" blocks; the core data is the "MEM " block.

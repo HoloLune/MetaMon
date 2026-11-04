@@ -10,7 +10,7 @@ Nessuna ROM è inclusa: ognuno carica la propria copia.
 | Swipe su/giù/sinistra/destra | Cammina in quella direzione finché non fai un altro gesto |
 | Pinch | A (se stai camminando: si ferma e basta) |
 | Indietro | B (se stai camminando: si ferma e basta) |
-| Pinch lungo (tieni chiuse le dita 0,6 s) | Menu: START, SELECT, L, R, Corri, Camminata auto, Veloce x2 (solo mentre cammini), Audio, Schermo (normale, zoom, pieno), Eco, Motore (classico/nuovo), Salva/Carica stato, Backup, Cambia gioco |
+| Pinch lungo (tieni chiuse le dita 0,6 s) | Menu: START, SELECT, L, R, Corri, Camminata auto, Veloce x2 (solo mentre cammini), Audio, Schermo (normale, zoom, pieno), Luminosità (schiarisce le zone scure, utile sul display additivo), Eco, Motore (classico/nuovo), Salva/Carica stato, Backup, Cambia gioco |
 | Pinch e trascina | Tiene premuta la direzione finché trascini |
 
 Camminata automatica (attiva di base): uno swipe fa camminare finché non fai pinch, Indietro o lo stesso swipe; uno swipe diverso cambia direzione. Dopo A, B, START o dopo esserti fermato con pinch/Indietro la camminata automatica si spegne: gli swipe fanno un passo/una voce alla volta, così nei dialoghi e nei menu il cursore non scappa. Due swipe veloci nella stessa direzione la riaccendono e ripartono a camminare. Se gli occhiali segnalano il dito tenuto appoggiato (tasto ripetuto o rilasciato dopo più di 0,35 s), l'app lo rileva da sola e da lì in poi cammini finché tieni il dito; riattivare «Camminata auto» dal menu annulla il rilevamento. «Prova comandi» nella schermata iniziale mostra gli eventi che arrivano dagli occhiali. Disattivandola dal menu ogni swipe è sempre un passo singolo. *Corri* tiene premuto B (scarpe da corsa).
@@ -41,3 +41,7 @@ Installazione sugli occhiali: apri il sito dal computer, compare un QR «Install
 ## Motore nuovo (sperimentale)
 
 Dal menu, *Motore* passa dal motore classico (EmulatorJS + RetroArch) a quello nuovo: il core mGBA di [libretro/mgba](https://github.com/libretro/mgba) (commit 7a12d6d, MPL-2.0) compilato da noi con Emscripten senza RetroArch, Asyncify né thread, più un piccolo frontend (`core-src/front.c`, `engine2.js`): un timer a 30 Hz esegue 2 fotogrammi, l'immagine va in WebGL e l'audio in un unico flusso AudioWorklet. Nei test usa circa il 40% di CPU in meno. Lo schermo cambia senza riavviare. I salvataggi in-game (.srm) valgono per entrambi i motori; gli stati salvati del motore nuovo non si caricano in quello classico (mGBA più vecchio). Ricompilare: `tools/build-core.sh /percorso/mgba` con emsdk attivo.
+
+## Salvataggi sul telefono
+
+Sugli occhiali «Telefono: ROM e salvataggi» mostra un codice; sul telefono apri `invia.html`, scrivi il codice e premi *Collega*. Da lì puoi inviare una ROM, **scaricare il salvataggio** di ogni gioco (file `.sav`, lo stesso formato di mGBA e degli altri emulatori) oppure **caricarne uno** sugli occhiali: quello vecchio finisce tra i backup e il gioco riparte dal salvataggio caricato.

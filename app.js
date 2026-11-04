@@ -3,8 +3,8 @@
 // optional pinch-and-drag pointer events (body has touch-action: none).
 // two engines with the same API: "classico" (EmulatorJS/RetroArch) and "nuovo" (our own mGBA build)
 const engineName = new URLSearchParams(location.search).get('engine') || (() => { try { return JSON.parse(localStorage.getItem('metamon.engine')) || 'classic'; } catch { return 'classic'; } })();
-const engine = await import(engineName === 'new' ? './engine2.js?v=22' : './engine.js?v=22');
-import * as store from './store.js?v=22';
+const engine = await import(engineName === 'new' ? './engine2.js?v=23' : './engine.js?v=23');
+import * as store from './store.js?v=23';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -20,6 +20,7 @@ const settings = {
   speed: LS.get('speed', false),   // fast forward x2
   audio: LS.get('audio', true),
   eco: LS.get('eco', false),       // native-resolution rendering, applied at game start
+  bright: LS.get('bright', 0),     // 0 normale, 1 media, 2 alta (lifts dark tones)
   screen: LS.get('screen', 'fit'), // fit (3:2, black bands) | zoom (fills the height, crops the sides) | stretch
 };
 
@@ -284,10 +285,12 @@ function closeDiag() { $('#diag').hidden = true; $('#loader').hidden = false; mo
 
 // ---------- menu ----------
 const SCREEN_LABEL = { fit: 'normale', zoom: 'zoom', stretch: 'pieno' };
+const BRIGHT_LABEL = ['normale', 'media', 'alta'];
 function refreshMenu() {
   const set = (act, on) => $(`[data-act=${act}]`).setAttribute('aria-pressed', String(on));
   set('run', settings.run); set('walk', settings.walk); set('speed', settings.speed); set('audio', settings.audio); set('eco', settings.eco);
   $('[data-act=screen]').textContent = 'Schermo: ' + SCREEN_LABEL[settings.screen];
+  $('[data-act=bright]').textContent = 'Luminosità: ' + BRIGHT_LABEL[settings.bright];
   $('[data-act=engine]').textContent = 'Motore: ' + (engineName === 'new' ? 'nuovo' : 'classico');
   const hud = [settings.run && 'Corsa', !settings.walk && 'Passi singoli', settings.speed && 'x2', !settings.audio && 'Muto', settings.eco && 'Eco'].filter(Boolean);
   if (perfText && LS.get('perf', true)) hud.push(perfText);
@@ -320,7 +323,7 @@ $('#menu').addEventListener('click', async (e) => {
     case 'run': settings.run = !settings.run; LS.set('run', settings.run); refreshMenu(); break;
     case 'walk': settings.walk = !settings.walk; LS.set('walk2', settings.walk); if (settings.walk) { holdCapable = false; LS.set('holdCapable', false); } refreshMenu(); break;
     case 'speed': settings.speed = !settings.speed; LS.set('speed', settings.speed); applySpeed(); refreshMenu(); break;
-    case 'audio': settings.audio = !settings.audio; LS.set('audio', settings.audio); set('eco', settings.eco); applyAudio(); refreshMenu(); break;
+    case 'audio': settings.audio = !settings.audio; LS.set('audio', settings.audio); applyAudio(); refreshMenu(); break;
     case 'save': {
       let ok = false;
       try { await store.put(`state:${currentRom}:1`, engine.getState()); ok = true; } catch (err) { console.warn(err); }
@@ -339,6 +342,7 @@ $('#menu').addEventListener('click', async (e) => {
       location.href = location.pathname + '?play=' + encodeURIComponent(currentRom);
       break;
     }
+    case 'bright': settings.bright = (settings.bright + 1) % 3; LS.set('bright', settings.bright); engine.setBrightness(settings.bright); refreshMenu(); break;
     case 'engine': {
       LS.set('engine', engineName === 'new' ? 'classic' : 'new');
       // the new engine's mGBA is newer: its snapshots don't load in the classic one (the in-game save does)
@@ -405,7 +409,7 @@ async function startGame(name) {
   currentRom = name;
   // restore in-game save (SRAM) and the automatic snapshot of where you left off
   await restoreProgress(name);
-  applySpeed(); applyAudio(); resumeAudio();
+  applySpeed(); applyAudio(); resumeAudio(); engine.setBrightness(settings.bright);
   $('#loader').hidden = true; $('#game').style.visibility = '';
   mode = 'game'; document.body.classList.add('playing');
   armBackTrap();
@@ -625,6 +629,20 @@ async function openPeer() {
   peer.on('connection', (conn) => {
     let meta = null, parts = [], got = 0;
     conn.on('data', async (d) => {
+      if (d && d.type === 'hello') { $('#pairStatus').textContent = 'Telefono collegato'; conn.send({ type: 'list', games: await gameList() }); return; }
+      if (d && d.type === 'getsave') {
+        const bytes = await store.get('srm:' + d.rom);
+        conn.send({ type: 'save', rom: d.rom, data: bytes ? bytes.slice().buffer : null });
+        $('#pairStatus').textContent = 'Salvataggio di ' + d.rom + ' inviato al telefono';
+        return;
+      }
+      if (d && d.type === 'putsave') {
+        const ok = (await romKeys()).includes(d.rom) && d.data && d.data.byteLength > 0;
+        if (ok) await importSave(d.rom, new Uint8Array(d.data));
+        conn.send({ type: 'saved', rom: d.rom, ok, games: await gameList() });
+        $('#pairStatus').textContent = ok ? 'Salvataggio di ' + d.rom + ' ricevuto' : 'Salvataggio non valido';
+        return;
+      }
       if (d && d.type === 'meta') { meta = d; parts = []; got = 0; $('#pairStatus').textContent = 'Ricevo ' + d.name + '…'; return; }
       if (d && d.type === 'done' && meta) {
         const bytes = new Uint8Array(got); let o = 0;
@@ -643,6 +661,19 @@ async function openPeer() {
       }
     });
   });
+}
+
+async function gameList() {
+  const keys = await store.keys();
+  return (await romKeys()).map((rom) => ({ rom, hasSave: keys.includes('srm:' + rom) }));
+}
+// a save sent from the phone replaces the current one (kept as a backup) and the game restarts from it
+async function importSave(rom, bytes) {
+  const cur = await store.get('srm:' + rom);
+  if (cur && !isBlank(cur)) await store.put(`bak:${rom}:${Date.now()}`, cur);
+  await store.put('srm:' + rom, bytes);
+  const st = await store.get(`state:${rom}:auto`);
+  if (st) { await store.put(`state:${rom}:beforeRestore`, st); await store.del(`state:${rom}:auto`); }
 }
 
 // Install QR (shown on a large screen, e.g. the computer, not on the glasses).
