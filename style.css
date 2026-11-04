@@ -75,3 +75,6 @@ button[aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
 
 #pair { padding: 28px 28px; text-align: center; }
 #pair strong { color: var(--accent); font-size: 24px; word-break: break-all; }
+
+#evlog { position: fixed; left: 8px; right: 8px; bottom: 4px; margin: 0; font: 15px/1.25 ui-monospace, Menlo, monospace; color: #ffd84a; white-space: pre-wrap; pointer-events: none; z-index: 50; }
+body.playing #evlog { display: none; }

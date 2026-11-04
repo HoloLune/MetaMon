@@ -8,12 +8,12 @@
   <meta name="description" content="Gioca ai tuoi giochi Game Boy Advance sugli occhiali Meta Ray-Ban Display. La ROM la carichi tu.">
   <title>MetaMon</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
   <main id="loader" class="screen">
     <h1>MetaMon</h1>
-    <p class="dim" id="ver">versione 5</p>
+    <p class="dim" id="ver">versione 6</p>
     <p id="status" class="dim">Avvio dell'emulatore…</p>
 
     <section id="library" hidden>
@@ -85,9 +85,34 @@
   </div>
 
   <div id="toast" role="status" hidden></div>
+  <pre id="evlog" aria-hidden="true"></pre>
 
+  <script>
+  (function () {
+    var log = [], el = document.getElementById('evlog');
+    function add(m) { log.unshift(m); log.length = Math.min(log.length, 6); el.textContent = log.join('\n'); }
+    window.__evlog = add;
+    var t0 = performance.now();
+    function ts() { return ((performance.now() - t0) / 1000).toFixed(1) + ' '; }
+    ['keydown','keyup','pointerdown','pointerup','pointercancel','mousedown','mouseup','click','touchstart','touchend','wheel','contextmenu'].forEach(function (t) {
+      window.addEventListener(t, function (e) {
+        var d = t;
+        if (e.key) d += ' ' + e.key;
+        if (e.clientX !== undefined) d += ' @' + Math.round(e.clientX) + ',' + Math.round(e.clientY);
+        if (e.pointerType) d += ' ' + e.pointerType;
+        var tg = e.target && (e.target.id || e.target.tagName);
+        add(ts() + d + ' -> ' + tg);
+      }, true);
+    });
+    window.addEventListener('focusout', function (e) { add(ts() + 'focusout ' + (e.target.id || e.target.textContent || e.target.tagName).slice(0, 20)); }, true);
+    window.addEventListener('blur', function () { add(ts() + 'window blur'); });
+    window.addEventListener('popstate', function () { add(ts() + 'popstate'); });
+    window.addEventListener('error', function (e) { add(ts() + 'ERRORE: ' + e.message); });
+    window.addEventListener('unhandledrejection', function (e) { add(ts() + 'ERRORE: ' + (e.reason && e.reason.message || e.reason)); });
+  })();
+  </script>
   <script src="vendor/qrcode.js"></script>
   <script src="vendor/peerjs.min.js"></script>
-  <script type="module" src="app.js?v=5"></script>
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>

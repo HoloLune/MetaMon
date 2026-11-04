@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=5';
-import * as store from './store.js?v=5';
+import * as engine from './engine.js?v=6';
+import * as store from './store.js?v=6';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -319,7 +319,7 @@ async function startGame(name) {
   try { const st = await store.get(`state:${name}:auto`); if (st) engine.loadState(st); } catch (e) { console.warn(e); }
   applySpeed(); applyAudio(); resumeAudio();
   $('#loader').hidden = true; $('#game').style.visibility = '';
-  mode = 'game';
+  mode = 'game'; document.body.classList.add('playing');
   armBackTrap();
   $('#game').focus();
   if (settings.run) press('b');
@@ -406,6 +406,7 @@ function peerOptions() {
   return { host, port: Number(port || 443), path: '/', secure: location.protocol === 'https:' && host !== 'localhost' };
 }
 $('#btnPhone').addEventListener('click', () => {
+  window.__evlog?.('apro schermata codice');
   mode = 'pair'; armBackTrap();
   $('#loader').hidden = true; $('#pair').hidden = false; document.activeElement?.blur();
   $('#sendUrl').textContent = new URL('invia.html', location.href).href.replace(/^https?:\/\//, '');
