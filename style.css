@@ -92,3 +92,4 @@ body.eco #ejs { width: 240px; height: 160px; max-width: none; max-height: none; 
 body.playing #evlog { display: none; }
 .retry { display: block; margin: 16px auto 0; min-width: 320px; }
 #backup .list { width: 100%; max-height: 100%; overflow-y: auto; }
+#bakList { max-height: 470px; overflow-y: auto; padding: 6px; }

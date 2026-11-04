@@ -10,7 +10,7 @@ Nessuna ROM è inclusa: ognuno carica la propria copia.
 | Swipe su/giù/sinistra/destra | Cammina in quella direzione finché non fai un altro gesto |
 | Pinch | A (se stai camminando: si ferma e basta) |
 | Indietro | B (se stai camminando: si ferma e basta) |
-| Pinch lungo (tieni chiuse le dita 0,6 s) | Menu: Riprendi, START, SELECT, L, R, Corri, Salva/Carica stato, Cambia gioco e **Impostazioni**: Camminata auto, x2 camminando, Audio, Schermo (normale, zoom, pieno), Luminosità (schiarisce le zone scure, utile sul display additivo), Eco, Motore (classico/nuovo), Backup. Indietro torna alla pagina precedente |
+| Pinch lungo (tieni chiuse le dita 0,6 s) | Menu: Riprendi, START, SELECT, L, R, Corri, Salva adesso, **Salvataggi**, Cambia gioco e **Impostazioni**: Camminata auto, x2 camminando, Audio, Schermo (normale, zoom, pieno), Luminosità (schiarisce le zone scure, utile sul display additivo), Eco, Motore (classico/nuovo). Indietro torna alla pagina precedente |
 | Pinch e trascina | Tiene premuta la direzione finché trascini |
 
 Camminata automatica (attiva di base): uno swipe fa camminare finché non fai pinch, Indietro o lo stesso swipe; uno swipe diverso cambia direzione. Dopo A, B, START o dopo esserti fermato con pinch/Indietro la camminata automatica si spegne: gli swipe fanno un passo/una voce alla volta, così nei dialoghi e nei menu il cursore non scappa. Due swipe veloci nella stessa direzione la riaccendono e ripartono a camminare. Se gli occhiali segnalano il dito tenuto appoggiato (tasto ripetuto o rilasciato dopo più di 0,35 s), l'app lo rileva da sola e da lì in poi cammini finché tieni il dito; riattivare «Camminata auto» dal menu annulla il rilevamento. «Prova comandi» nella schermata iniziale mostra gli eventi che arrivano dagli occhiali. Disattivandola dal menu ogni swipe è sempre un passo singolo. *Corri* tiene premuto B (scarpe da corsa).
@@ -45,3 +45,10 @@ Dal menu, *Motore* passa dal motore classico (EmulatorJS + RetroArch) a quello n
 ## Salvataggi sul telefono
 
 Sugli occhiali «Telefono: ROM e salvataggi» mostra un codice; sul telefono apri `invia.html`, scrivi il codice e premi *Collega*. Da lì puoi inviare una ROM, **scaricare il salvataggio** di ogni gioco (file `.sav`, lo stesso formato di mGBA e degli altri emulatori) oppure **caricarne uno** sugli occhiali: quello vecchio finisce tra i backup e il gioco riparte dal salvataggio caricato.
+
+## Salvataggi
+
+- Salvi nel gioco come sempre (menu di Pokémon → Salva): è il salvataggio vero, quello che puoi copiare sul telefono.
+- L'app riprende da sola dal punto esatto in cui eri quando chiudi o cambi gioco.
+- *Salva adesso* fissa il momento esatto (le ultime 3 volte).
+- *Salvataggi* è l'unico elenco dei punti a cui tornare, dal più recente: «Salvato da te», «Apertura del gioco» (dov'eri quando l'hai aperto) e «Salvataggio nel gioco» (le ultime 10 versioni del salvataggio del gioco: ogni volta che lo sovrascrivi, quello vecchio resta qui). Un salvataggio vuoto non sostituisce mai uno vero.

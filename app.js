@@ -3,8 +3,8 @@
 // optional pinch-and-drag pointer events (body has touch-action: none).
 // two engines with the same API: "classico" (EmulatorJS/RetroArch) and "nuovo" (our own mGBA build)
 const engineName = new URLSearchParams(location.search).get('engine') || (() => { try { return JSON.parse(localStorage.getItem('metamon.engine')) || 'classic'; } catch { return 'classic'; } })();
-const engine = await import(engineName === 'new' ? './engine2.js?v=24' : './engine.js?v=24');
-import * as store from './store.js?v=24';
+const engine = await import(engineName === 'new' ? './engine2.js?v=25' : './engine.js?v=25');
+import * as store from './store.js?v=25';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -334,15 +334,13 @@ $('#menu').addEventListener('click', async (e) => {
     case 'walk': settings.walk = !settings.walk; LS.set('walk2', settings.walk); if (settings.walk) { holdCapable = false; LS.set('holdCapable', false); } refreshMenu(); break;
     case 'speed': settings.speed = !settings.speed; LS.set('speed', settings.speed); applySpeed(); refreshMenu(); break;
     case 'audio': settings.audio = !settings.audio; LS.set('audio', settings.audio); applyAudio(); refreshMenu(); break;
-    case 'save': {
+    case 'save': {   // quick save: the exact moment, kept in the Salvataggi list (last 3)
       let ok = false;
-      try { await store.put(`state:${currentRom}:1`, engine.getState()); ok = true; } catch (err) { console.warn(err); }
-      closeMenu(); toast(ok ? 'Stato salvato' : 'Salvataggio non riuscito'); break;
-    }
-    case 'load': {
-      const st = await store.get(`state:${currentRom}:1`);
-      if (st) engine.loadState(st);
-      closeMenu(); toast(st ? 'Stato caricato' : 'Nessuno stato salvato'); break;
+      try {
+        await store.put(`quick:${currentRom}:${Date.now()}`, engine.getState()); ok = true;
+        for (const q of (await listKeys(`quick:${currentRom}:`)).slice(3)) await store.del(q.key);
+      } catch (err) { console.warn(err); }
+      closeMenu(); toast(ok ? 'Salvato! Lo ritrovi in Salvataggi' : 'Salvataggio non riuscito'); break;
     }
     case 'screen': {
       settings.screen = { fit: 'zoom', zoom: 'stretch', stretch: 'fit' }[settings.screen] || 'fit'; LS.set('screen', settings.screen);
@@ -496,44 +494,49 @@ async function restoreProgress(name) {
   const st = await store.get(`state:${name}:auto`);
   if (st) {
     // keep where you were when you opened the game, in case this session goes wrong
-    try { await store.put(`state:${name}:open`, st); } catch {}
+    try { await store.put(`state:${name}:open`, st); LS.set('openAt:' + name, Date.now()); } catch {}
     try { engine.loadState(st); } catch (e) { console.warn(e); }
   }
 }
 // rolling backups of the in-game save: at most one every 10 minutes, last 6 kept
+// every in-game save that gets replaced is kept (they're small), last 10
 async function backupSrm(name) {
-  const tsKey = 'bakAt:' + name;
-  if (Date.now() - (LS.get(tsKey, 0)) < 10 * 60 * 1000) return;
   const cur = await store.get('srm:' + name);
   if (!cur || isBlank(cur)) return;
+  const last = (await listKeys(`bak:${name}:`))[0];
+  if (last && hash(await store.get(last.key) || new Uint8Array()) === hash(cur)) return;
   await store.put(`bak:${name}:${Date.now()}`, cur);
-  LS.set(tsKey, Date.now());
-  const old = (await listBackups(name)).slice(6);
-  for (const b of old) await store.del(b.key);
+  for (const b of (await listKeys(`bak:${name}:`)).slice(10)) await store.del(b.key);
 }
-async function listBackups(name) {
-  const pre = `bak:${name}:`;
+async function listKeys(pre) {
   return (await store.keys()).filter((k) => k.startsWith(pre)).map((k) => ({ key: k, t: Number(k.slice(pre.length)) })).sort((a, b) => b.t - a.t);
 }
+const listBackups = (name) => listKeys(`bak:${name}:`);
 async function openBackups() {
   const list = $('#bakList'); list.textContent = '';
   const fmt = (t) => new Date(t).toLocaleString('it-IT', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
   const add = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); list.appendChild(b); };
-  add('Indietro', () => { $('#backup').hidden = true; $('#menu').hidden = false; $('#menu [data-act=backup]').focus(); });
-  if (await store.get(`state:${currentRom}:open`)) add('Torna a quando hai aperto il gioco', async () => {
-    const st = await store.get(`state:${currentRom}:open`); engine.loadState(st); $('#backup').hidden = true; closeMenu(); toast('Ripristinato');
-  });
-  for (const b of await listBackups(currentRom)) add('Salvataggio del ' + fmt(b.t), async () => {
+  add('‹ Indietro', () => { $('#backup').hidden = true; $('#menu').hidden = false; $('#menu [data-act=backup]').focus(); });
+  // snapshots (exact moment, instant) and in-game saves (restart from the title screen), newest first
+  const snap = async (key) => { const st = await store.get(key); engine.loadState(st); $('#backup').hidden = true; closeMenu(); toast('Ripristinato'); };
+  const entries = [];
+  for (const q of await listKeys(`quick:${currentRom}:`)) entries.push({ t: q.t, label: 'Salvato da te · ' + fmt(q.t), fn: () => snap(q.key) });
+  if (await store.get(`state:${currentRom}:1`)) entries.push({ t: 0, label: 'Salvato da te · versione precedente', fn: () => snap(`state:${currentRom}:1`) });
+  if (await store.get(`state:${currentRom}:open`)) entries.push({ t: LS.get('openAt:' + currentRom, 1), label: 'Apertura del gioco · ' + fmt(LS.get('openAt:' + currentRom, Date.now())), fn: () => snap(`state:${currentRom}:open`) });
+  for (const b of await listBackups(currentRom)) entries.push({ t: b.t, label: 'Salvataggio nel gioco · ' + fmt(b.t), fn: async () => {
     const name = currentRom, bytes = await store.get(b.key);
     currentRom = null;   // stop autosave from writing the current save/state back while we reload
+    await backupSrm(name);   // the save being replaced stays in the list
     await store.put('srm:' + name, bytes);
     const st = await store.get(`state:${name}:auto`);
     if (st) { await store.put(`state:${name}:beforeRestore`, st); await store.del(`state:${name}:auto`); }
     toast('Ripristino, riavvio il gioco…');
     location.href = location.pathname + '?play=' + encodeURIComponent(name);
-  });
+  } });
+  entries.sort((a, b) => b.t - a.t).forEach((e) => add(e.label, e.fn));
+  if (!entries.length) { const p = document.createElement('p'); p.className = 'dim'; p.textContent = 'Ancora nessun salvataggio.'; list.appendChild(p); }
   $('#menu').hidden = true; $('#backup').hidden = false;
-  (list.children[1] || list.children[0]).focus();
+  list.children[0].focus();   // start on Indietro: a stray pinch must not restore anything
 }
 
 async function quitGame() {

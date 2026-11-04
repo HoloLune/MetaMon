@@ -8,12 +8,12 @@
   <meta name="description" content="Gioca ai tuoi giochi Game Boy Advance sugli occhiali Meta Ray-Ban Display. La ROM la carichi tu.">
   <title>MetaMon</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=24">
+  <link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
   <main id="loader" class="screen">
     <h1>MetaMon</h1>
-    <p class="dim" id="ver">versione 24</p>
+    <p class="dim" id="ver">versione 25</p>
     <p id="status" class="dim">Avvio dell'emulatore…</p>
 
     <section id="library" hidden>
@@ -76,8 +76,8 @@
         <button data-btn="l" type="button">L</button>
         <button data-btn="r" type="button">R</button>
         <button data-act="run" type="button">Corri</button>
-        <button data-act="save" type="button">Salva stato</button>
-        <button data-act="load" type="button">Carica stato</button>
+        <button data-act="save" type="button">Salva adesso</button>
+        <button data-act="backup" type="button">Salvataggi</button>
         <button data-act="settings" type="button">Impostazioni</button>
         <button data-act="quit" type="button" class="wide">Cambia gioco</button>
       </div>
@@ -93,13 +93,12 @@
         <button data-act="bright" type="button">Luminosità</button>
         <button data-act="eco" type="button">Eco</button>
         <button data-act="engine" type="button">Motore</button>
-        <button data-act="backup" type="button">Backup</button>
       </div>
     </div>
   </div>
 
   <div id="backup" class="overlay" hidden>
-    <div class="list" id="bakList"></div>
+    <div class="page"><h2 class="pagetitle">Salvataggi: scegli dove tornare</h2><div class="list" id="bakList"></div></div>
   </div>
 
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -133,6 +132,6 @@
     window.addEventListener('unhandledrejection', function (e) { add(ts() + 'ERRORE: ' + (e.reason && e.reason.message || e.reason)); });
   })();
   </script>
-  <script type="module" src="app.js?v=24"></script>
+  <script type="module" src="app.js?v=25"></script>
 </body>
 </html>
