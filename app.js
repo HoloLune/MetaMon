@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=4';
-import * as store from './store.js?v=4';
+import * as engine from './engine.js?v=5';
+import * as store from './store.js?v=5';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -164,12 +164,19 @@ window.addEventListener('keyup', (e) => {
   if (b) release(b);
 }, { capture: true });
 
-// ---------- pinch-and-drag: hold a direction while dragging ----------
+// ---------- pinch / pinch-and-drag (pointer events) ----------
+// On the glasses a pinch can arrive as a pointer "tap" somewhere on the page instead of
+// an Enter key. A tap that is not on a control would just blur the focused button,
+// so we keep focus and activate the focused control ourselves (in game: A button).
 let drag = null;
+let lastFocused = null;
+document.addEventListener('focusin', (e) => { if (e.target !== document.body && e.target.id !== 'game') lastFocused = e.target; });
+const onControl = (el) => el?.closest?.('button, a, input, label, select, textarea');
+// keep the focused control focused when the tap lands elsewhere
+window.addEventListener('mousedown', (e) => { if (!onControl(e.target)) e.preventDefault(); }, { capture: true });
 window.addEventListener('pointerdown', (e) => {
-  if (mode !== 'game') return;
-  drag = { x: e.clientX, y: e.clientY, dir: null, id: e.pointerId };
-  try { e.target.setPointerCapture?.(e.pointerId); } catch {}
+  drag = { x: e.clientX, y: e.clientY, t: performance.now(), dir: null, id: e.pointerId, target: e.target };
+  if (mode === 'game') { try { e.target.setPointerCapture?.(e.pointerId); } catch {} }
 });
 window.addEventListener('pointermove', (e) => {
   if (!drag || mode !== 'game' || e.pointerId !== drag.id) return;
@@ -182,7 +189,30 @@ window.addEventListener('pointermove', (e) => {
     drag.dir = dir; press(dir);
   }
 });
-function endDrag() { if (drag?.dir) release(drag.dir); drag = null; }
+let lastEnterAt = 0;
+window.addEventListener('keydown', (e) => { if (e.key === 'Enter') lastEnterAt = performance.now(); }, { capture: true });
+function endDrag(e) {
+  const d = drag; drag = null;
+  if (!d) return;
+  if (d.dir) { release(d.dir); return; }
+  if (e.type !== 'pointerup') return;
+  const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
+  if (moved > 24 || performance.now() - d.t > 800) return;
+  // it was a tap / pinch (skip if the same pinch also produced an Enter key)
+  if (performance.now() - lastEnterAt < 400) return;
+  if (mode === 'game') {
+    resumeAudio();
+    if (walking) { stopWalking(); return; }
+    markButton(); tap('a'); return;
+  }
+  if (onControl(d.target)) return;            // a real tap on a control: the browser clicks it
+  const el = (document.activeElement && document.activeElement !== document.body) ? document.activeElement : lastFocused;
+  if (el && document.contains(el) && !el.closest('[hidden]')) {
+    el.focus();
+    if (el.tagName === 'LABEL' && el.htmlFor) document.getElementById(el.htmlFor)?.click();
+    else el.click();
+  }
+}
 window.addEventListener('pointerup', endDrag);
 window.addEventListener('pointercancel', endDrag);
 
