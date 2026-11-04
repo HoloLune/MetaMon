@@ -1,8 +1,10 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=21';
-import * as store from './store.js?v=21';
+// two engines with the same API: "classico" (EmulatorJS/RetroArch) and "nuovo" (our own mGBA build)
+const engineName = new URLSearchParams(location.search).get('engine') || (() => { try { return JSON.parse(localStorage.getItem('metamon.engine')) || 'classic'; } catch { return 'classic'; } })();
+const engine = await import(engineName === 'new' ? './engine2.js?v=22' : './engine.js?v=22');
+import * as store from './store.js?v=22';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -286,6 +288,7 @@ function refreshMenu() {
   const set = (act, on) => $(`[data-act=${act}]`).setAttribute('aria-pressed', String(on));
   set('run', settings.run); set('walk', settings.walk); set('speed', settings.speed); set('audio', settings.audio); set('eco', settings.eco);
   $('[data-act=screen]').textContent = 'Schermo: ' + SCREEN_LABEL[settings.screen];
+  $('[data-act=engine]').textContent = 'Motore: ' + (engineName === 'new' ? 'nuovo' : 'classico');
   const hud = [settings.run && 'Corsa', !settings.walk && 'Passi singoli', settings.speed && 'x2', !settings.audio && 'Muto', settings.eco && 'Eco'].filter(Boolean);
   if (perfText && LS.get('perf', true)) hud.push(perfText);
   $('#hud').textContent = hud.join(' · ');
@@ -330,7 +333,16 @@ $('#menu').addEventListener('click', async (e) => {
     }
     case 'screen': {
       settings.screen = { fit: 'zoom', zoom: 'stretch', stretch: 'fit' }[settings.screen] || 'fit'; LS.set('screen', settings.screen);
+      if (engine.liveScreen) { document.body.dataset.screen = settings.eco ? 'fit' : settings.screen; refreshMenu(); toast('Schermo ' + SCREEN_LABEL[settings.screen]); break; }
       $('#menu').hidden = true; toast('Schermo ' + SCREEN_LABEL[settings.screen] + ', riavvio…');
+      await persist(true);
+      location.href = location.pathname + '?play=' + encodeURIComponent(currentRom);
+      break;
+    }
+    case 'engine': {
+      LS.set('engine', engineName === 'new' ? 'classic' : 'new');
+      // the new engine's mGBA is newer: its snapshots don't load in the classic one (the in-game save does)
+      $('#menu').hidden = true; toast(engineName === 'new' ? 'Motore classico: riparti dall\'ultimo salvataggio del gioco…' : 'Motore nuovo, riavvio…', 4000);
       await persist(true);
       location.href = location.pathname + '?play=' + encodeURIComponent(currentRom);
       break;
@@ -381,8 +393,11 @@ async function startGame(name) {
     const safe = new URLSearchParams(location.search).has('safe');
     const retry = document.createElement('button');
     retry.type = 'button'; retry.className = 'retry';
-    retry.textContent = safe ? 'Riprova' : 'Riprova in modalità sicura';
-    retry.addEventListener('click', () => { location.href = location.pathname + '?play=' + encodeURIComponent(name) + '&safe=1'; });
+    retry.textContent = engineName === 'new' ? 'Riprova con il motore classico' : safe ? 'Riprova' : 'Riprova in modalità sicura';
+    retry.addEventListener('click', () => {
+      if (engineName === 'new') { LS.set('engine', 'classic'); location.href = location.pathname + '?play=' + encodeURIComponent(name); return; }
+      location.href = location.pathname + '?play=' + encodeURIComponent(name) + '&safe=1';
+    });
     $('#status').after(retry);
     retry.focus();
     return;
@@ -457,10 +472,11 @@ async function restoreProgress(name) {
       try { engine.restoreSave(srm); } catch (e) { console.warn(e); }
       await waitFrames(3, 2000);
       const now = engine.getSave(true);
-      ok = !!now && hash(now) === hash(srm);
+      // the core may report a bigger save chip than the stored file until the game touches it
+      ok = !!now && now.length >= srm.length && hash(now.subarray(0, srm.length)) === hash(srm) && (now.length === srm.length || isBlank(now.subarray(srm.length)));
       if (!ok) await sleep(500);
     }
-    if (ok) lastSrm = hash(srm);
+    if (ok) lastSrm = hash(engine.getSave(false) || srm);
     else { srmLocked = true; toast('Salvataggio non caricato: non lo sovrascrivo. Riavvia il gioco.', 6000); }
   }
   const st = await store.get(`state:${name}:auto`);

@@ -8,12 +8,12 @@
   <meta name="description" content="Gioca ai tuoi giochi Game Boy Advance sugli occhiali Meta Ray-Ban Display. La ROM la carichi tu.">
   <title>MetaMon</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=21">
+  <link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
   <main id="loader" class="screen">
     <h1>MetaMon</h1>
-    <p class="dim" id="ver">versione 21</p>
+    <p class="dim" id="ver">versione 22</p>
     <p id="status" class="dim">Avvio dell'emulatore…</p>
 
     <section id="library" hidden>
@@ -80,6 +80,7 @@
       <button data-act="audio" type="button">Audio</button>
       <button data-act="screen" type="button">Schermo</button>
       <button data-act="eco" type="button">Eco</button>
+      <button data-act="engine" type="button">Motore</button>
       <button data-act="save" type="button">Salva stato</button>
       <button data-act="load" type="button">Carica stato</button>
       <button data-act="backup" type="button">Backup</button>
@@ -118,6 +119,6 @@
     window.addEventListener('unhandledrejection', function (e) { add(ts() + 'ERRORE: ' + (e.reason && e.reason.message || e.reason)); });
   })();
   </script>
-  <script type="module" src="app.js?v=21"></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>
