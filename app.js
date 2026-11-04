@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=19';
-import * as store from './store.js?v=19';
+import * as engine from './engine.js?v=20';
+import * as store from './store.js?v=20';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -38,11 +38,13 @@ function hash(u8) { let h = 2166136261 >>> 0; for (let i = 0; i < u8.length; i +
 
 // ---------- GBA buttons ----------
 const timers = new Map();
+const DIR_SET = new Set(['up', 'down', 'left', 'right']);
 const held = new Set();
-function press(btn) { if (!held.has(btn)) { held.add(btn); engine.press(btn); } }
+function press(btn) { if (!held.has(btn)) { held.add(btn); engine.press(btn); } if (DIR_SET.has(btn)) applySpeed(); }
 function release(btn) {
   clearTimeout(timers.get(btn)); timers.delete(btn);
   if (held.has(btn)) { held.delete(btn); engine.release(btn); }
+  if (DIR_SET.has(btn)) applySpeed();
   if (btn === 'b' && settings.run && mode === 'game') press('b'); // keep running
 }
 function tap(btn, ms = settings.tapMs) {
@@ -50,7 +52,7 @@ function tap(btn, ms = settings.tapMs) {
   clearTimeout(timers.get(btn));
   timers.set(btn, setTimeout(() => release(btn), ms));
 }
-function releaseAll() { for (const b of [...held]) { clearTimeout(timers.get(b)); timers.delete(b); held.delete(b); engine.release(b); } }
+function releaseAll() { for (const b of [...held]) { clearTimeout(timers.get(b)); timers.delete(b); held.delete(b); engine.release(b); } applySpeed(); }
 
 const DIRS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 let walking = null;                 // direction held by "Passo continuo"
@@ -300,7 +302,7 @@ function openMenu() {
 function closeMenu(then) {
   if (mode !== 'menu') return;
   $('#menu').hidden = true; $('#backup').hidden = true;
-  mode = 'game'; engine.resume();
+  mode = 'game'; engine.resume(); applySpeed();
   $('#game').focus();
   if (settings.run) press('b');
   if (then) setTimeout(then, 60);
@@ -343,7 +345,12 @@ $('#menu').addEventListener('click', async (e) => {
     case 'backup': await openBackups(); break;
   }
 });
-function applySpeed() { engine.setSpeed(settings.speed); }
+// "Veloce x2" only while walking: dialogues, menus and battles stay at normal speed
+let fastNow = null;
+function applySpeed() {
+  const fast = settings.speed && mode === 'game' && [...DIR_SET].some((d) => held.has(d));
+  if (fast !== fastNow) { fastNow = fast; engine.setSpeed(fast); }
+}
 function applyAudio() { engine.setVolume(settings.audio ? 1 : 0); }
 function resumeAudio() { engine.resumeAudio(); }
 

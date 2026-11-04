@@ -9,14 +9,15 @@ const LOOP_MS = 1000 / 30;
 const MIN_SLEEP_MS = 8;
 const ITERS_PER_TICK = 2;
 const FRAME_MS = 1000 / 59.7275;   // GBA refresh rate
+let speedMul = 1;                   // 2 while fast-forwarding
 function catchUp() {
   let owed = 0, last = 0;
   const f = () => {
     const now = performance.now();
-    owed += last ? now - last : FRAME_MS * ITERS_PER_TICK; last = now;
-    return Math.max(1, Math.min(4, Math.round(owed / FRAME_MS)));
+    owed += (last ? now - last : FRAME_MS * ITERS_PER_TICK) * speedMul; last = now;
+    return Math.max(1, Math.min(4 * speedMul, Math.round(owed / FRAME_MS)));
   };
-  f.done = (ran) => { owed = Math.max(-FRAME_MS, Math.min(owed - ran * FRAME_MS, 3 * FRAME_MS)); };
+  f.done = (ran) => { owed = Math.max(-FRAME_MS, Math.min(owed - ran * FRAME_MS, 3 * FRAME_MS * speedMul)); };
   return f;
 }
 let ejs = null;
@@ -120,7 +121,8 @@ export function press(b) { gm?.simulateInput(0, IDX[b], 1); }
 export function release(b) { gm?.simulateInput(0, IDX[b], 0); }
 export function pause() { try { ejs.pause(true); } catch {} }
 export function resume() { try { ejs.play(true); } catch {} }
-export function setSpeed(x2) { try { gm.setFastForwardRatio(2); gm.toggleFastForward(x2 ? 1 : 0); } catch (e) { console.warn(e); } }
+export function setSpeed(x2) { speedMul = x2 ? 2 : 1; try { gm.setFastForwardRatio(window.EJS_loopTimeoutMs ? 0 : 2); // 0 = no limiter: our clock-based loop sets the pace
+  gm.toggleFastForward(x2 ? 1 : 0); } catch (e) { console.warn(e); } }
 export function setVolume(v) { try { ejs.setVolume(v); } catch (e) { console.warn(e); } }
 export function resumeAudio() {
   try { const ctx = ejs?.Module?.AL?.currentCtx?.audioCtx; if (ctx && ctx.state !== 'running') ctx.resume(); } catch {}
