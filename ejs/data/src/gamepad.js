@@ -33,6 +33,7 @@ class GamepadHandler {
         return navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
     }
     loop() {
+        if (window.EJS_disableGamepadPolling) return; // MetaMon: no physical gamepads on the glasses, avoid 100 wakeups/s
         this.updateGamepadState();
         this.timeout = setTimeout(this.loop.bind(this), 10);
     }

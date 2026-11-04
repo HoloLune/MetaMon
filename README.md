@@ -33,7 +33,7 @@ Installazione sugli occhiali: apri il sito dal computer, compare un QR «Install
 
 ## Licenze
 
-- EmulatorJS 4.2.3 (`ejs/data`): GPL-3.0, vedi `ejs/LICENSE`. `emulator.min.js` è la semplice concatenazione dei sorgenti in `ejs/data/src` (con il controllo versioni verso il CDN disattivabile).
-- Core mGBA per EmulatorJS (`ejs/data/cores`, da `@emulatorjs/core-mgba` 4.2.3): mGBA è MPL-2.0. `mgba-wasm.data` è ricompresso con `mgba_libretro.js` modificato in due punti: legge `window.EJS_glAttrs` (attributi del contesto WebGL a basso consumo) e `window.EJS_loopTimeoutMs` (ritmo del ciclo principale). `GameManager.js` aggiunge `window.EJS_extraRetroarchCfg` alla configurazione di RetroArch.
+- EmulatorJS 4.2.3 (`ejs/data`): GPL-3.0, vedi `ejs/LICENSE`. `emulator.min.js` è generato dai sorgenti in `ejs/data/src` (controllo versioni verso il CDN disattivabile).
+- Core mGBA per EmulatorJS (`ejs/data/cores`, da `@emulatorjs/core-mgba` 4.2.3): mGBA è MPL-2.0. `mgba-wasm.data` è ricompresso con `mgba_libretro.js` modificato in due punti: legge `window.EJS_glAttrs` (attributi del contesto WebGL a basso consumo), `window.EJS_loopTimeoutMs` (ciclo principale a timer, un risveglio per fotogramma invece di uno spin con setImmediate) e `window.EJS_minSleepMs` (attesa minima quando il buffer audio è pieno, invece di 1 ms); lo scheduler audio OpenAL gira ogni 50 ms con 150 ms di anticipo. In `gamepad.js` il polling dei gamepad si disattiva con `window.EJS_disableGamepadPolling`. `emulator.min.js` si rigenera con `tools/build-ejs.sh` (senza socket.io, che serve solo al netplay). `GameManager.js` aggiunge `window.EJS_extraRetroarchCfg` alla configurazione di RetroArch.
 - PeerJS 1.5.4: MIT · qrcode-generator 1.4.4: MIT
 - Il codice di MetaMon è distribuito sotto GPL-3.0 insieme a EmulatorJS.

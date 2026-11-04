@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=13';
-import * as store from './store.js?v=13';
+import * as engine from './engine.js?v=14';
+import * as store from './store.js?v=14';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -474,7 +474,11 @@ function closePair() {
   peer = null;
   $('#pair').hidden = true; $('#loader').hidden = false; mode = 'loader'; renderLibrary();
 }
-function openPeer() {
+// libraries loaded only when needed (less to parse and keep in memory during play)
+const loadScript = (src) => new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('impossibile caricare ' + src)); document.head.appendChild(el); });
+async function openPeer() {
+  if (!window.Peer) { $('#pairStatus').textContent = 'Mi collego…'; try { await loadScript('vendor/peerjs.min.js'); } catch {} }
+  if (mode !== 'pair' || peer) return;
   const code = String(Math.floor(1000 + Math.random() * 9000));
   $('#pairCode').textContent = code;
   $('#pairStatus').textContent = 'Mi collego…';
@@ -510,8 +514,9 @@ function openPeer() {
 }
 
 // Install QR (shown on a large screen, e.g. the computer, not on the glasses).
-function renderInstallQr() {
-  if (window.innerWidth < 760 || !window.qrcode) return;
+async function renderInstallQr() {
+  if (window.innerWidth < 760) return;
+  if (!window.qrcode) { try { await loadScript('vendor/qrcode.js'); } catch { return; } }
   const link = `fb-viewapp://web_app_deep_link?appName=MetaMon&appUrl=${encodeURIComponent(location.origin + location.pathname)}`;
   const qr = window.qrcode(0, 'M'); qr.addData(link); qr.make();
   $('#qr').innerHTML = qr.createImgTag(6, 0);
