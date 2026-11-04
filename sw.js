@@ -1,5 +1,5 @@
 // MetaMon service worker: keeps an offline copy of the app (network first, cache fallback).
-const CACHE = 'metamon-v2';
+const CACHE = 'metamon-v3';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil((async () => {
@@ -17,7 +17,7 @@ self.addEventListener('fetch', (e) => {
     const cache = await caches.open(CACHE);
     const key = url.pathname.endsWith('/') ? url.pathname : req;
     try {
-      const res = await fetch(req);
+      const res = await fetch(req, { cache: 'no-cache' }); // always revalidate, GitHub Pages caches 10 min
       if (res.ok) cache.put(key, res.clone()).catch(() => {});
       return res;
     } catch (err) {
