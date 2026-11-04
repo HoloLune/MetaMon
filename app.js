@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=7';
-import * as store from './store.js?v=7';
+import * as engine from './engine.js?v=8';
+import * as store from './store.js?v=8';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -264,6 +264,7 @@ function refreshMenu() {
   const set = (act, on) => $(`[data-act=${act}]`).setAttribute('aria-pressed', String(on));
   set('run', settings.run); set('walk', settings.walk); set('speed', settings.speed); set('audio', settings.audio);
   const hud = [settings.run && 'Corsa', !settings.walk && 'Passi singoli', settings.speed && 'x2', !settings.audio && 'Muto'].filter(Boolean);
+  if (perfText && LS.get('perf', true)) hud.push(perfText);
   $('#hud').textContent = hud.join(' · ');
 }
 function openMenu() {
@@ -340,8 +341,21 @@ async function startGame(name) {
   if (settings.run) press('b');
   refreshMenu();
   toast('Indietro = B · doppio Indietro = menu', 2600);
+  startPerfMeter();
   setInterval(() => persist(false), 10000);
   setInterval(() => persist(true), 30000);
+}
+// speed meter in the HUD: display refresh rate vs emulated frames per second (GBA = 60)
+let perfText = '';
+function startPerfMeter() {
+  let raf = 0, f0 = engine.frameCount(), t0 = performance.now();
+  const tick = () => { raf++; requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+  setInterval(() => {
+    const t = performance.now(), f = engine.frameCount(), dt = (t - t0) / 1000;
+    perfText = `schermo ${Math.round(raf / dt)} Hz · gioco ${Math.round((f - f0) / dt)} fps`;
+    raf = 0; f0 = f; t0 = t;
+    if (LS.get('perf', true)) refreshMenu();
+  }, 2000);
 }
 let lastSrm = null;
 async function persist(withState) {

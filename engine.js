@@ -26,7 +26,20 @@ export function start(name, bytes, onProgress) {
       EJS_backgroundColor: '#000',
       EJS_color: '#000000',
       EJS_defaultControls: { 0: {}, 1: {}, 2: {}, 3: {} },
-      EJS_defaultOptions: { 'save-save-interval': '0', virtualGamepad: 'disabled', menubarBehavior: 'downward' },
+      EJS_defaultOptions: {
+        'save-save-interval': '0', virtualGamepad: 'disabled', menubarBehavior: 'downward',
+        // performance: the glasses' display may refresh below 60 Hz, so don't tie the
+        // emulator to it; let mGBA skip drawing frames when the CPU can't keep up
+        vsync: 'disabled',
+        webgl2Enabled: 'enabled',
+        mgba_frameskip: 'auto',
+        mgba_idle_optimization: 'Remove Known',
+        mgba_audio_low_pass_filter: 'disabled',
+        mgba_color_correction: 'OFF',
+        mgba_interframe_blending: 'OFF',
+      },
+      // cheaper audio: no sinc resampler, a bigger buffer against crackles
+      EJS_extraRetroarchCfg: 'audio_resampler = "nearest"\naudio_resampler_quality = "1"\naudio_latency = 128\nvideo_vsync = false\naudio_out_rate = 32000\n',
       EJS_onGameStart: () => {
         ejs = window.EJS_emulator; gm = ejs.gameManager;
         clearTimeout(watchdog); clearInterval(poll);
@@ -48,6 +61,7 @@ export function start(name, bytes, onProgress) {
   });
 }
 
+export function frameCount() { try { return gm.getFrameNum(); } catch { return 0; } }
 export function press(b) { gm?.simulateInput(0, IDX[b], 1); }
 export function release(b) { gm?.simulateInput(0, IDX[b], 0); }
 export function pause() { try { ejs.pause(true); } catch {} }
