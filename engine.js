@@ -32,14 +32,16 @@ export function start(name, bytes, onProgress) {
         // emulator to it; let mGBA skip drawing frames when the CPU can't keep up
         vsync: 'disabled',
         webgl2Enabled: 'enabled',
-        mgba_frameskip: 'auto',
+        // the glasses show 30 Hz: emulate all 60 frames but only draw every other one
+        mgba_frameskip: 'fixed_interval',
+        mgba_frameskip_interval: '1',
         mgba_idle_optimization: 'Remove Known',
         mgba_audio_low_pass_filter: 'disabled',
         mgba_color_correction: 'OFF',
         mgba_interframe_blending: 'OFF',
       },
-      // cheaper audio: no sinc resampler, a bigger buffer against crackles
-      EJS_extraRetroarchCfg: 'audio_resampler = "nearest"\naudio_resampler_quality = "1"\naudio_latency = 128\nvideo_vsync = false\naudio_out_rate = 32000\n',
+      // audio: light sinc resampler (nearest crackles), output at 48 kHz like the device, bigger buffer
+      EJS_extraRetroarchCfg: 'audio_resampler = "sinc"\naudio_resampler_quality = "1"\naudio_latency = 160\nvideo_vsync = false\naudio_out_rate = 48000\n',
       EJS_onGameStart: () => {
         ejs = window.EJS_emulator; gm = ejs.gameManager;
         clearTimeout(watchdog); clearInterval(poll);
