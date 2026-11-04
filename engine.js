@@ -61,6 +61,9 @@ export function start(name, bytes, onProgress) {
     window.EJS_minSleepMs = MIN_SLEEP_MS;
     window.EJS_disableGamepadPolling = true;
     window.EJS_itersPerTick = ITERS_PER_TICK;
+    // RetroArch redraws the last picture when mGBA skips a frame (30 times a second): our patched core
+    // skips those duplicate clear+draw calls, the canvas keeps showing the same image anyway.
+    window.EJS_skipDupeDraws = true;
     // WebGL context tuned for a battery device: opaque (no blending with the page), no unused
     // depth/stencil buffers, ask the GPU for low power. Our patched core reads EJS_glAttrs.
     window.EJS_glAttrs = { alpha: false, depth: false, stencil: false, antialias: false, powerPreference: 'low-power' };
@@ -71,6 +74,7 @@ export function start(name, bytes, onProgress) {
       if (localStorage.getItem('metamon.glattrs')) window.EJS_glAttrs = JSON.parse(localStorage.getItem('metamon.glattrs'));
       if (localStorage.getItem('metamon.sleepms') !== null) window.EJS_minSleepMs = Number(localStorage.getItem('metamon.sleepms'));
       if (localStorage.getItem('metamon.iters') !== null) window.EJS_itersPerTick = Number(localStorage.getItem('metamon.iters'));
+      if (localStorage.getItem('metamon.dupes') !== null) window.EJS_skipDupeDraws = localStorage.getItem('metamon.dupes') !== '1';
       if (localStorage.getItem('metamon.loopms') !== null) window.EJS_loopTimeoutMs = Number(localStorage.getItem('metamon.loopms'));
     } catch {}
     const s = document.createElement('script');

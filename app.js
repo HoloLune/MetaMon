@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=15';
-import * as store from './store.js?v=15';
+import * as engine from './engine.js?v=16';
+import * as store from './store.js?v=16';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
