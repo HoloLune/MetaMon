@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=14';
-import * as store from './store.js?v=14';
+import * as engine from './engine.js?v=15';
+import * as store from './store.js?v=15';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -65,7 +65,7 @@ function stopWalking() { if (walking) { release(walking); walking = null; } }
 // Automatic walking: in the overworld a swipe keeps walking until the next input.
 // Right after A/B/START (menus, dialogs, battles) swipes are single steps instead,
 // so a menu cursor never runs away; each single step keeps that window open.
-let lastButtonAt = 0;
+let lastButtonAt = -Infinity;
 const markButton = () => { lastButtonAt = performance.now(); };
 function onDirection(dir, repeat) {
   if (repeat) learnHold();
@@ -189,7 +189,7 @@ window.addEventListener('pointermove', (e) => {
     drag.dir = dir; press(dir);
   }
 });
-let lastEnterAt = 0;
+let lastEnterAt = -Infinity;
 window.addEventListener('keydown', (e) => { if (e.key === 'Enter') lastEnterAt = performance.now(); }, { capture: true });
 function endDrag(e) {
   const d = drag; drag = null;
@@ -202,9 +202,9 @@ function endDrag(e) {
   if (performance.now() - lastEnterAt < 400) return;
   if (mode === 'game') { lastTapAt = performance.now(); pinchInGame(); }
 }
-let lastTapAt = 0;
+let lastTapAt = -Infinity;
 // pinch = A; two pinches within 350 ms = menu (START, SELECT, L, R, saves…)
-let lastPinchAt = 0;
+let lastPinchAt = -Infinity;
 function pinchInGame() {
   resumeAudio();
   const now = performance.now();

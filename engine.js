@@ -3,8 +3,11 @@
 // EmulatorJS's own UI and keyboard handling are disabled; MetaMon drives it.
 const IDX = { b: 0, select: 2, start: 3, up: 4, down: 5, left: 6, right: 7, a: 8, l: 10, r: 11 };
 
-const LOOP_MS = 1000 / 60;   // one main-loop wakeup per frame (was a setImmediate spin, ~350/s)
+// The glasses display refreshes at 30 Hz: wake up 30 times a second and run 2 emulated frames each time
+// (60 fps game speed). Was a setImmediate spin, ~350 wakeups/s.
+const LOOP_MS = 1000 / 30;
 const MIN_SLEEP_MS = 8;
+const ITERS_PER_TICK = 2;
 let ejs = null;
 let gm = null;
 
@@ -57,6 +60,7 @@ export function start(name, bytes, onProgress) {
     // each time: ~300 wakeups/s). Sleeping a few ms is plenty with a 160 ms audio buffer.
     window.EJS_minSleepMs = MIN_SLEEP_MS;
     window.EJS_disableGamepadPolling = true;
+    window.EJS_itersPerTick = ITERS_PER_TICK;
     // WebGL context tuned for a battery device: opaque (no blending with the page), no unused
     // depth/stencil buffers, ask the GPU for low power. Our patched core reads EJS_glAttrs.
     window.EJS_glAttrs = { alpha: false, depth: false, stencil: false, antialias: false, powerPreference: 'low-power' };
@@ -66,6 +70,7 @@ export function start(name, bytes, onProgress) {
       window.EJS_extraRetroarchCfg += localStorage.getItem('metamon.racfg') || '';
       if (localStorage.getItem('metamon.glattrs')) window.EJS_glAttrs = JSON.parse(localStorage.getItem('metamon.glattrs'));
       if (localStorage.getItem('metamon.sleepms') !== null) window.EJS_minSleepMs = Number(localStorage.getItem('metamon.sleepms'));
+      if (localStorage.getItem('metamon.iters') !== null) window.EJS_itersPerTick = Number(localStorage.getItem('metamon.iters'));
       if (localStorage.getItem('metamon.loopms') !== null) window.EJS_loopTimeoutMs = Number(localStorage.getItem('metamon.loopms'));
     } catch {}
     const s = document.createElement('script');

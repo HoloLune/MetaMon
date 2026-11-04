@@ -5714,8 +5714,8 @@ class EmulatorJS {
             //lastTime = newTime;
             //frame syncing - working
             //control syncing - broken
+            if (!this.isNetplay) return; // MetaMon: skip the per-frame netplay bookkeeping
             this.netplay.currentFrame = parseInt(this.gameManager.getFrameNum()) - this.netplay.init_frame;
-            if (!this.isNetplay) return;
             if (this.netplay.owner) {
                 let to_send = [];
                 let i = this.netplay.currentFrame - 1;
