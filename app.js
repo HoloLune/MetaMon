@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=20';
-import * as store from './store.js?v=20';
+import * as engine from './engine.js?v=21';
+import * as store from './store.js?v=21';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -15,7 +15,6 @@ const settings = {
   tapMs: 90,                       // A / B / START press length
   run: LS.get('run', false),       // keep B held (running shoes)
   walk: LS.get('walk2', true),     // a swipe keeps walking until the next input (auto, see onDirection)
-  menuWindowMs: 1500,              // swipes this soon after a button press are single steps (menus, dialogs)
   speed: LS.get('speed', false),   // fast forward x2
   audio: LS.get('audio', true),
   eco: LS.get('eco', false),       // native-resolution rendering, applied at game start
@@ -65,11 +64,12 @@ function learnHold() { if (!holdCapable) { holdCapable = true; LS.set('holdCapab
 
 function stopWalking() { if (walking) { release(walking); walking = null; } }
 
-// Automatic walking: in the overworld a swipe keeps walking until the next input.
-// Right after A/B/START (menus, dialogs, battles) swipes are single steps instead,
-// so a menu cursor never runs away; each single step keeps that window open.
-let lastButtonAt = -Infinity;
-const markButton = () => { lastButtonAt = performance.now(); };
+// Automatic walking: a swipe keeps walking until the next input, but only while "armed".
+// A/B/START or stopping with pinch/Back disarm it (dialogues, menus, battles): swipes are then
+// single steps, so a cursor never runs away. Two quick swipes in the same direction arm it again.
+let autoArmed = true;
+let lastSwipe = { dir: null, t: -Infinity };
+const markButton = () => { autoArmed = false; };
 function onDirection(dir, repeat) {
   if (repeat) learnHold();
   if (holdCapable) {
@@ -81,15 +81,16 @@ function onDirection(dir, repeat) {
     timers.set(dir, setTimeout(() => { if (!keysDown.has(dir)) release(dir); }, 4000));
     return;
   }
-  const inMenuWindow = performance.now() - lastButtonAt < settings.menuWindowMs;
-  if (settings.walk && (walking || !inMenuWindow)) {
+  const now = performance.now();
+  if (settings.walk && !autoArmed && !repeat && lastSwipe.dir === dir && now - lastSwipe.t < 700) autoArmed = true;
+  if (!repeat) lastSwipe = { dir, t: now };
+  if (settings.walk && (walking || autoArmed)) {
     if (repeat) return;
     if (walking === dir) { stopWalking(); return; }  // same swipe again = stop
     stopWalking();
     walking = dir; press(dir);
     return;
   }
-  if (settings.walk) markButton();
   for (const d of Object.values(DIRS)) if (d !== dir && held.has(d)) release(d);
   tap(dir, settings.stepMs);
 }
@@ -103,7 +104,7 @@ function onBack() {
   if (mode === 'menu') { closeMenu(); return; }
   if (mode !== 'game') return;
   // (a double Back turns the glasses' display off, so it can't open the menu: double pinch does)
-  if (walking) { stopWalking(); return; }       // Back while walking = just stop
+  if (walking) { stopWalking(); markButton(); return; }       // Back while walking = just stop
   markButton(); tap('b');
 }
 window.addEventListener('popstate', () => {
@@ -211,7 +212,7 @@ let lastTapAt = -Infinity;
 // happen all the time when skipping dialogue.
 function pinchInGame() {
   resumeAudio();
-  if (walking) { stopWalking(); return; }
+  if (walking) { stopWalking(); markButton(); return; }
   markButton(); tap('a');
 }
 // long pinch: whatever "finger down" signal the glasses send (Enter keydown, mouse/pointer down)
