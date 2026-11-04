@@ -88,3 +88,4 @@ body.eco #ejs { width: 240px; height: 160px; max-width: none; max-height: none; 
 #evlog { position: fixed; left: 8px; right: 8px; bottom: 4px; margin: 0; font: 15px/1.25 ui-monospace, Menlo, monospace; color: #ffd84a; white-space: pre-wrap; pointer-events: none; z-index: 50; }
 body.playing #evlog { display: none; }
 .retry { display: block; margin: 16px auto 0; min-width: 320px; }
+#backup .list { width: 100%; max-height: 100%; overflow-y: auto; }

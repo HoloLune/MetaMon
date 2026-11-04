@@ -8,6 +8,17 @@ const IDX = { b: 0, select: 2, start: 3, up: 4, down: 5, left: 6, right: 7, a: 8
 const LOOP_MS = 1000 / 30;
 const MIN_SLEEP_MS = 8;
 const ITERS_PER_TICK = 2;
+const FRAME_MS = 1000 / 59.7275;   // GBA refresh rate
+function catchUp() {
+  let owed = 0, last = 0;
+  const f = () => {
+    const now = performance.now();
+    owed += last ? now - last : FRAME_MS * ITERS_PER_TICK; last = now;
+    return Math.max(1, Math.min(4, Math.round(owed / FRAME_MS)));
+  };
+  f.done = (ran) => { owed = Math.max(-FRAME_MS, Math.min(owed - ran * FRAME_MS, 3 * FRAME_MS)); };
+  return f;
+}
 let ejs = null;
 let gm = null;
 
@@ -61,7 +72,10 @@ export function start(name, bytes, onProgress, opts = {}) {
     // each time: ~300 wakeups/s). Sleeping a few ms is plenty with a 160 ms audio buffer.
     window.EJS_minSleepMs = MIN_SLEEP_MS;
     window.EJS_disableGamepadPolling = true;
-    window.EJS_itersPerTick = ITERS_PER_TICK;
+    // Frames to run per wakeup follow the real clock: normally 2, but when a wakeup comes late
+    // (the glasses are busy or throttled) run up to 4 to catch up, so the audio never runs dry.
+    // If we're ahead, RetroArch's audio sync just sleeps. Our patched core calls this every wakeup.
+    window.EJS_itersPerTick = catchUp();
     // RetroArch redraws the last picture when mGBA skips a frame (30 times a second): our patched core
     // skips those duplicate clear+draw calls, the canvas keeps showing the same image anyway.
     window.EJS_skipDupeDraws = true;

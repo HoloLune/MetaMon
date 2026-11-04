@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=18';
-import * as store from './store.js?v=18';
+import * as engine from './engine.js?v=19';
+import * as store from './store.js?v=19';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -205,14 +205,10 @@ function endDrag(e) {
   if (mode === 'game') { lastTapAt = performance.now(); pinchInGame(); }
 }
 let lastTapAt = -Infinity;
-// pinch = A. Menu (START, SELECT, L, R, saves…) = long pinch (held 0.6 s), or three quick pinches
-// as a fallback. Two quick pinches no longer open it: that happens all the time when skipping dialogue.
-let pinchTimes = [];
+// pinch = A. Menu (START, SELECT, L, R, saves…) = long pinch (held 0.6 s) only: quick pinches
+// happen all the time when skipping dialogue.
 function pinchInGame() {
   resumeAudio();
-  const now = performance.now();
-  pinchTimes = pinchTimes.filter((t) => now - t < 600); pinchTimes.push(now);
-  if (pinchTimes.length >= 3) { pinchTimes = []; release('a'); openMenu(); return; }
   if (walking) { stopWalking(); return; }
   markButton(); tap('a');
 }
@@ -220,7 +216,7 @@ function pinchInGame() {
 let longTimer = 0, longOpened = false;
 function holdStart() {
   if (mode !== 'game' || longTimer) return;
-  longTimer = setTimeout(() => { longTimer = 0; if (mode !== 'game' || drag?.dir) return; longOpened = true; pinchTimes = []; release('a'); openMenu(); }, 600);
+  longTimer = setTimeout(() => { longTimer = 0; if (mode !== 'game' || drag?.dir) return; longOpened = true; release('a'); openMenu(); }, 600);
 }
 function holdEnd() { clearTimeout(longTimer); longTimer = 0; if (longOpened) setTimeout(() => { longOpened = false; }, 400); }
 window.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.repeat) holdStart(); }, { capture: true });
@@ -303,7 +299,7 @@ function openMenu() {
 }
 function closeMenu(then) {
   if (mode !== 'menu') return;
-  $('#menu').hidden = true;
+  $('#menu').hidden = true; $('#backup').hidden = true;
   mode = 'game'; engine.resume();
   $('#game').focus();
   if (settings.run) press('b');
@@ -344,6 +340,7 @@ $('#menu').addEventListener('click', async (e) => {
       break;
     }
     case 'quit': await quitGame(); break;
+    case 'backup': await openBackups(); break;
   }
 });
 function applySpeed() { engine.setSpeed(settings.speed); }
@@ -384,8 +381,7 @@ async function startGame(name) {
   }
   currentRom = name;
   // restore in-game save (SRAM) and the automatic snapshot of where you left off
-  try { const srm = await store.get('srm:' + name); if (srm) { engine.restoreSave(srm); lastSrm = hash(srm); } } catch (e) { console.warn(e); }
-  try { const st = await store.get(`state:${name}:auto`); if (st) engine.loadState(st); } catch (e) { console.warn(e); }
+  await restoreProgress(name);
   applySpeed(); applyAudio(); resumeAudio();
   $('#loader').hidden = true; $('#game').style.visibility = '';
   mode = 'game'; document.body.classList.add('playing');
@@ -420,12 +416,88 @@ async function persist(withState) {
   if (!currentRom) return;
   try {
     const srm = engine.getSave(withState);
-    if (srm && srm.length) { const h = hash(srm); if (h !== lastSrm) { await store.put('srm:' + currentRom, srm.slice()); lastSrm = h; } }
+    if (srm && srm.length && !srmLocked) {
+      const h = hash(srm);
+      // never replace a real save with an empty one (e.g. the core didn't take our save at startup)
+      if (h !== lastSrm && !(isBlank(srm) && hadRealSrm)) {
+        await backupSrm(currentRom);
+        await store.put('srm:' + currentRom, srm.slice()); lastSrm = h;
+        if (!isBlank(srm)) hadRealSrm = true;
+      }
+    }
   } catch (e) { console.warn('save', e); }
   if (withState && (mode === 'game' || mode === 'menu')) {
     try { await store.put(`state:${currentRom}:auto`, engine.getState()); } catch (e) { console.warn('state', e); }
   }
 }
+// ---------- restoring and protecting progress ----------
+let srmLocked = false, hadRealSrm = false;
+const isBlank = (u8) => { const v = u8[0]; if (v !== 0 && v !== 0xff) return false; for (let i = 0; i < u8.length; i++) if (u8[i] !== v) return false; return true; };
+async function waitFrames(n, ms) {
+  const f0 = engine.frameCount(), t0 = performance.now();
+  while (engine.frameCount() - f0 < n && performance.now() - t0 < ms) await sleep(50);
+}
+async function restoreProgress(name) {
+  // On a slow device the emulator reports "started" before RetroArch has finished loading the game;
+  // a save restored too early gets replaced by an empty one. Wait until frames are really running.
+  await waitFrames(20, 15000);
+  const srm = await store.get('srm:' + name);
+  if (srm) {
+    hadRealSrm = !isBlank(srm);
+    let ok = false;
+    for (let i = 0; i < 4 && !ok; i++) {
+      try { engine.restoreSave(srm); } catch (e) { console.warn(e); }
+      await waitFrames(3, 2000);
+      const now = engine.getSave(true);
+      ok = !!now && hash(now) === hash(srm);
+      if (!ok) await sleep(500);
+    }
+    if (ok) lastSrm = hash(srm);
+    else { srmLocked = true; toast('Salvataggio non caricato: non lo sovrascrivo. Riavvia il gioco.', 6000); }
+  }
+  const st = await store.get(`state:${name}:auto`);
+  if (st) {
+    // keep where you were when you opened the game, in case this session goes wrong
+    try { await store.put(`state:${name}:open`, st); } catch {}
+    try { engine.loadState(st); } catch (e) { console.warn(e); }
+  }
+}
+// rolling backups of the in-game save: at most one every 10 minutes, last 6 kept
+async function backupSrm(name) {
+  const tsKey = 'bakAt:' + name;
+  if (Date.now() - (LS.get(tsKey, 0)) < 10 * 60 * 1000) return;
+  const cur = await store.get('srm:' + name);
+  if (!cur || isBlank(cur)) return;
+  await store.put(`bak:${name}:${Date.now()}`, cur);
+  LS.set(tsKey, Date.now());
+  const old = (await listBackups(name)).slice(6);
+  for (const b of old) await store.del(b.key);
+}
+async function listBackups(name) {
+  const pre = `bak:${name}:`;
+  return (await store.keys()).filter((k) => k.startsWith(pre)).map((k) => ({ key: k, t: Number(k.slice(pre.length)) })).sort((a, b) => b.t - a.t);
+}
+async function openBackups() {
+  const list = $('#bakList'); list.textContent = '';
+  const fmt = (t) => new Date(t).toLocaleString('it-IT', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const add = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); list.appendChild(b); };
+  add('Indietro', () => { $('#backup').hidden = true; $('#menu').hidden = false; $('#menu [data-act=backup]').focus(); });
+  if (await store.get(`state:${currentRom}:open`)) add('Torna a quando hai aperto il gioco', async () => {
+    const st = await store.get(`state:${currentRom}:open`); engine.loadState(st); $('#backup').hidden = true; closeMenu(); toast('Ripristinato');
+  });
+  for (const b of await listBackups(currentRom)) add('Salvataggio del ' + fmt(b.t), async () => {
+    const name = currentRom, bytes = await store.get(b.key);
+    currentRom = null;   // stop autosave from writing the current save/state back while we reload
+    await store.put('srm:' + name, bytes);
+    const st = await store.get(`state:${name}:auto`);
+    if (st) { await store.put(`state:${name}:beforeRestore`, st); await store.del(`state:${name}:auto`); }
+    toast('Ripristino, riavvio il gioco…');
+    location.href = location.pathname + '?play=' + encodeURIComponent(name);
+  });
+  $('#menu').hidden = true; $('#backup').hidden = false;
+  (list.children[1] || list.children[0]).focus();
+}
+
 async function quitGame() {
   $('#menu').hidden = true;
   releaseAll();
