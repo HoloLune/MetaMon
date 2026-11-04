@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=10';
-import * as store from './store.js?v=10';
+import * as engine from './engine.js?v=11';
+import * as store from './store.js?v=11';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -347,11 +347,6 @@ async function startGame(name) {
 }
 // speed meter in the HUD: display refresh rate vs emulated frames per second (GBA = 60)
 let perfText = '';
-function fitScreen() {
-  const k = Math.min(innerWidth / 240, innerHeight / 160);
-  document.documentElement.style.setProperty('--gba-scale', String(k));
-}
-addEventListener('resize', fitScreen); fitScreen();
 function startPerfMeter() {
   // measure the display refresh only for the first seconds (a permanent rAF loop costs power)
   let raf = 0, hz = null;
