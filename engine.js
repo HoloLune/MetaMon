@@ -67,6 +67,10 @@ export function start(name, bytes, onProgress) {
     // WebGL context tuned for a battery device: opaque (no blending with the page), no unused
     // depth/stencil buffers, ask the GPU for low power. Our patched core reads EJS_glAttrs.
     window.EJS_glAttrs = { alpha: false, depth: false, stencil: false, antialias: false, powerPreference: 'low-power' };
+    // safe mode (?safe=1): none of our core tweaks, plain EmulatorJS behaviour
+    if (new URLSearchParams(location.search).has('safe')) {
+      Object.assign(window, { EJS_loopTimeoutMs: 0, EJS_minSleepMs: 0, EJS_itersPerTick: 1, EJS_skipDupeDraws: false, EJS_glAttrs: null, EJS_disableGamepadPolling: false });
+    }
     // tuning overrides for testing: localStorage metamon.opts (JSON) / metamon.racfg (text)
     try {
       Object.assign(window.EJS_defaultOptions, JSON.parse(localStorage.getItem('metamon.opts') || '{}'));
@@ -82,13 +86,17 @@ export function start(name, bytes, onProgress) {
     s.onerror = () => reject(new Error('Impossibile caricare EmulatorJS'));
     document.body.appendChild(s);
     // surface EmulatorJS's own progress / error text
+    // give up only after 60 s without any progress (a slow connection can take longer overall)
+    let lastTxt = '', stage = 'caricamento di EmulatorJS', watchdog;
+    const arm = () => { clearTimeout(watchdog); watchdog = setTimeout(() => { clearInterval(poll); reject(new Error(`fermo da 60 s a "${stage}"`)); }, 60000); };
     const poll = setInterval(() => {
       const e = window.EJS_emulator;
-      const txt = e?.textElem?.innerText;
-      if (txt) onProgress?.(txt);
+      if (e && stage === 'caricamento di EmulatorJS') { stage = 'preparazione'; arm(); }
+      const txt = (e?.textElem?.innerText || e?.textElem?.textContent || "").trim();
+      if (txt && txt !== lastTxt) { lastTxt = stage = txt; onProgress?.(txt); arm(); }
       if (e?.failedToStart) { clearInterval(poll); clearTimeout(watchdog); reject(new Error(txt || 'avvio non riuscito')); }
     }, 300);
-    const watchdog = setTimeout(() => { clearInterval(poll); reject(new Error('timeout (60 s)')); }, 60000);
+    arm();
   });
 }
 

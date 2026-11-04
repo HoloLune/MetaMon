@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=16';
-import * as store from './store.js?v=16';
+import * as engine from './engine.js?v=17';
+import * as store from './store.js?v=17';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -344,6 +344,15 @@ async function startGame(name) {
     console.error(err);
     $('#game').hidden = true; $('#game').style.visibility = '';
     setStatus('Impossibile avviare ' + name + ': ' + err.message);
+    startGame.busy = false;
+    // offer a retry without MetaMon's emulator tweaks, to tell a tweak problem from a device/network one
+    const safe = new URLSearchParams(location.search).has('safe');
+    const retry = document.createElement('button');
+    retry.type = 'button'; retry.className = 'retry';
+    retry.textContent = safe ? 'Riprova' : 'Riprova in modalità sicura';
+    retry.addEventListener('click', () => { location.href = location.pathname + '?play=' + encodeURIComponent(name) + '&safe=1'; });
+    $('#status').after(retry);
+    retry.focus();
     return;
   }
   currentRom = name;
