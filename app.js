@@ -1,8 +1,8 @@
 // MetaMon: GBA emulator frontend (mGBA via EmulatorJS) for Meta Ray-Ban Display glasses.
 // Glasses input: ArrowUp/Down/Left/Right + Enter keydown, shell Back -> history.back(),
 // optional pinch-and-drag pointer events (body has touch-action: none).
-import * as engine from './engine.js?v=12';
-import * as store from './store.js?v=12';
+import * as engine from './engine.js?v=13';
+import * as store from './store.js?v=13';
 
 const $ = (s) => document.querySelector(s);
 const LS = {
@@ -99,11 +99,9 @@ function armBackTrap() { if (!history.state?.metamonTrap) history.pushState({ me
 function onBack() {
   if (mode === 'menu') { closeMenu(); return; }
   if (mode !== 'game') return;
-  if (backTimer) {                   // second Back within 350 ms -> menu
-    clearTimeout(backTimer); backTimer = null; openMenu(); return;
-  }
+  // (a double Back turns the glasses' display off, so it can't open the menu: double pinch does)
   if (walking) { stopWalking(); return; }       // Back while walking = just stop
-  backTimer = setTimeout(() => { backTimer = null; markButton(); tap('b'); }, 350);
+  markButton(); tap('b');
 }
 window.addEventListener('popstate', () => {
   if (mode === 'loader') return;    // let Back leave the app from the loader
@@ -134,8 +132,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Enter') {
     if (e.repeat) { press('a'); return; }
-    if (walking) { stopWalking(); return; }     // pinch while walking = just stop
-    markButton(); tap('a'); return;
+    pinchInGame(); return;
   }
   if (e.key === 'Escape' || e.key === 'Backspace') { if (!e.repeat) onBack(); return; }
   if (e.key === 'm' || e.key === 'M') { openMenu(); return; }
@@ -206,8 +203,13 @@ function endDrag(e) {
   if (mode === 'game') { lastTapAt = performance.now(); pinchInGame(); }
 }
 let lastTapAt = 0;
+// pinch = A; two pinches within 350 ms = menu (START, SELECT, L, R, saves…)
+let lastPinchAt = 0;
 function pinchInGame() {
   resumeAudio();
+  const now = performance.now();
+  if (now - lastPinchAt < 350) { lastPinchAt = 0; release('a'); openMenu(); return; }
+  lastPinchAt = now;
   if (walking) { stopWalking(); return; }
   markButton(); tap('a');
 }
@@ -224,6 +226,8 @@ window.addEventListener('click', (e) => {
   if (!isGlasses) return;
   const el = document.activeElement;
   if (!el || el === document.body || el.contains(e.target)) return;   // normal click on the focused control
+  // the second pinch of the double pinch that opened the menu must not press a menu button
+  if (mode === 'menu' && performance.now() - menuOpenedAt < 500) { e.preventDefault(); e.stopImmediatePropagation(); return; }
   if (e.target.closest?.('#fileInput')) return;
   e.preventDefault(); e.stopImmediatePropagation();
   if (performance.now() - lastEnterAt < 400) return;   // the Enter key already activated it
@@ -268,8 +272,10 @@ function refreshMenu() {
   if (perfText && LS.get('perf', true)) hud.push(perfText);
   $('#hud').textContent = hud.join(' · ');
 }
+let menuOpenedAt = 0;
 function openMenu() {
   if (mode !== 'game') return;
+  menuOpenedAt = performance.now();
   releaseAll(); walking = null;
   mode = 'menu'; engine.pause();
   refreshMenu();
@@ -351,7 +357,7 @@ async function startGame(name) {
   $('#game').focus();
   if (settings.run) press('b');
   refreshMenu();
-  toast('Indietro = B · doppio Indietro = menu', 2600);
+  toast('Pinch = A · Indietro = B · doppio pinch = menu', 3000);
   startPerfMeter();
   setInterval(() => persist(false), 10000);
   setInterval(() => persist(true), 30000);
